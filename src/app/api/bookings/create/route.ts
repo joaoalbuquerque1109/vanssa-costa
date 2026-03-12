@@ -120,16 +120,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Serviço não encontrado." }, { status: 404 });
   }
 
-  const existing = await supabase
-    .from("agendamentos")
-    .select("id")
-    .eq("funcionario", professionalId)
-    .eq("data", date)
-    .eq("hora", `${time}:00`)
-    .maybeSingle<{ id: number }>();
+  const [existingBooked, existingPending] = await Promise.all([
+    supabase
+      .from("agendamentos")
+      .select("id")
+      .eq("funcionario", professionalId)
+      .eq("data", date)
+      .eq("hora", `${time}:00`)
+      .maybeSingle<{ id: number }>(),
+    supabase
+      .from("agendamentos_pendentes")
+      .delete()
+      .lt("expires_at", new Date().toISOString())
+      .select("id"),
+  ]);
 
-  if (existing.data?.id) {
+  if (existingBooked.data?.id) {
     return NextResponse.json({ error: "Este horário acabou de ser reservado. Selecione outro horário." }, { status: 409 });
+  }
+
+  if (existingPending.error) {
+    return NextResponse.json({ error: "Nao foi possivel limpar pre-agendamentos expirados." }, { status: 500 });
   }
 
   let customerId = explicitCustomerId;
@@ -186,31 +197,34 @@ export async function POST(request: Request) {
     customerId = customerInsert.data.id;
   }
 
-  const insertRes = await supabase
-    .from("agendamentos")
+  const pendingInsert = await supabase
+    .from("agendamentos_pendentes")
     .insert({
       funcionario: professionalId,
       cliente: customerId,
       data: date,
       hora: `${time}:00`,
       obs: body.obs?.trim() || null,
-      status: "Confirmado",
       servico: serviceId,
-      valor_pago: Number(serviceRes.data.valor || 0),
-      data_lanc: new Date().toISOString().slice(0, 10),
+      valor: Number(serviceRes.data.valor || 0),
       phone: telefone,
+      status: "pending",
+      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     })
     .select("id,status")
-    .single<{ id: number; status: string }>();
+    .single<{ id: string; status: string }>();
 
-  if (insertRes.error || !insertRes.data?.id) {
-    return NextResponse.json({ error: "Não foi possível confirmar o agendamento." }, { status: 500 });
+  if (pendingInsert.error || !pendingInsert.data?.id) {
+    if (pendingInsert.error?.code === "23505") {
+      return NextResponse.json({ error: "Este horario esta aguardando pagamento. Selecione outro horario." }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Nao foi possivel iniciar o pagamento para este horario." }, { status: 500 });
   }
 
   return NextResponse.json({
     ok: true,
-    bookingId: insertRes.data.id,
-    status: insertRes.data.status,
-    paymentRedirect: `/pagamento?agendamento=${insertRes.data.id}`,
+    pendingBookingId: pendingInsert.data.id,
+    status: pendingInsert.data.status,
+    paymentRedirect: `/pagamento?pendente=${pendingInsert.data.id}`,
   });
 }

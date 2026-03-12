@@ -8,7 +8,7 @@ import { PortalSignOutButton } from "@/components/PortalSignOutButton";
 
 type Role = "funcionario" | "administrador";
 type Range = "day" | "week" | "month" | "quarter" | "semester" | "year" | "custom";
-type PanelSection = "overview" | "catalog" | "profile" | "schedule" | "appointments" | "myAgenda" | "employees" | "customers" | "finance";
+type PanelSection = "overview" | "catalog" | "profile" | "schedule" | "appointments" | "myAgenda" | "employees" | "customers" | "plans" | "finance";
 
 type DashboardData = {
   dateRange: { from: string; to: string };
@@ -53,6 +53,14 @@ type FinancePaymentRow = {
   sucesso: boolean;
   status_pagamento: string;
 };
+type PlanPaymentRow = {
+  id: number;
+  cliente_nome: string;
+  cliente_cpf: string;
+  servico_nome: string;
+  created_at: string;
+  sucesso: boolean;
+};
 
 const RANGE_LABELS: Record<Range, string> = {
   day: "Dia",
@@ -73,6 +81,7 @@ const SECTION_TITLES: Record<PanelSection, string> = {
   myAgenda: "Minha agenda",
   employees: "Funcionários",
   customers: "Clientes",
+  plans: "Planos",
   finance: "Financeiro",
 };
 
@@ -335,6 +344,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [appointmentCustomerFilter, setAppointmentCustomerFilter] = useState<number>(0);
   const [financeRows, setFinanceRows] = useState<FinancePaymentRow[]>([]);
+  const [planRows, setPlanRows] = useState<PlanPaymentRow[]>([]);
   const [paymentSettings, setPaymentSettings] = useState({ public_key_mp: "", access_token_mp: "" });
   const [paymentSettingsSaving, setPaymentSettingsSaving] = useState(false);
   const [paymentSettingsFeedback, setPaymentSettingsFeedback] = useState<string | null>(null);
@@ -388,6 +398,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
           { key: "appointments", label: "Agendamentos" },
           { key: "employees", label: "Funcionários" },
           { key: "customers", label: "Clientes" },
+          { key: "plans", label: "Planos" },
           { key: "finance", label: "Financeiro" },
         ]
       : [
@@ -510,9 +521,10 @@ export function EmployeeDashboard({ role }: { role: Role }) {
     }
 
     if (role === "administrador") {
-      const [employeesRes, customersRes, financeRes, financeSettingsRes] = await Promise.all([
+      const [employeesRes, customersRes, plansRes, financeRes, financeSettingsRes] = await Promise.all([
         fetch("/api/portal/admin/employees", { cache: "no-store" }),
         fetch("/api/portal/customers", { cache: "no-store" }),
+        fetch("/api/portal/plans", { cache: "no-store" }),
         fetch("/api/portal/finance", { cache: "no-store" }),
         fetch("/api/portal/finance/settings", { cache: "no-store" }),
       ]);
@@ -524,6 +536,10 @@ export function EmployeeDashboard({ role }: { role: Role }) {
       if (customersRes.ok) {
         const data = (await customersRes.json()) as { customers: Customer[] };
         setCustomers(data.customers ?? []);
+      }
+      if (plansRes.ok) {
+        const data = (await plansRes.json()) as { rows: PlanPaymentRow[] };
+        setPlanRows(data.rows ?? []);
       }
       if (financeRes.ok) {
         const data = (await financeRes.json()) as { rows: FinancePaymentRow[] };
@@ -1593,6 +1609,48 @@ export function EmployeeDashboard({ role }: { role: Role }) {
                   <tr>
                     <td className="px-3 py-4 text-slate-500" colSpan={7}>
                       Nenhum pagamento registrado.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {role === "administrador" && activeSection === "plans" ? (
+        <div id="plans" className="space-y-6 rounded-[32px] bg-white p-4 shadow-soft sm:p-8">
+          <h3 className="text-xl font-bold text-slate-900">Solicitacoes de planos</h3>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead>
+                <tr className="text-left text-slate-500">
+                  <th className="px-3 py-2">Nome do cliente</th>
+                  <th className="px-3 py-2">CPF</th>
+                  <th className="px-3 py-2">Plano</th>
+                  <th className="px-3 py-2">Data da solicitacao</th>
+                  <th className="px-3 py-2">Situacao</th>
+                </tr>
+              </thead>
+              <tbody>
+                {planRows.map((row) => (
+                  <tr key={row.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2">{row.cliente_nome}</td>
+                    <td className="px-3 py-2">{row.cliente_cpf}</td>
+                    <td className="px-3 py-2">{row.servico_nome}</td>
+                    <td className="px-3 py-2">{new Date(row.created_at).toLocaleString("pt-BR")}</td>
+                    <td className="px-3 py-2">
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.sucesso ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                        {row.sucesso ? "Pago" : "Nao pago"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {!planRows.length ? (
+                  <tr>
+                    <td className="px-3 py-4 text-slate-500" colSpan={5}>
+                      Nenhuma solicitacao de plano registrada.
                     </td>
                   </tr>
                 ) : null}

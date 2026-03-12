@@ -27,6 +27,7 @@ type CreatePreferencePayload = {
   description?: string;
   metadata?: Record<string, unknown>;
   bookingId?: number;
+  pendingBookingId?: string;
   planId?: number;
   customer?: CustomerInput;
   paymentMethod?: "all" | "pix" | "card" | "boleto" | "pix_card";
@@ -181,19 +182,23 @@ export async function POST(request: Request) {
 
   const payload = (await request.json()) as CreatePreferencePayload;
   const bookingId = Number(payload.bookingId ?? payload.metadata?.booking_id ?? 0);
+  const pendingBookingId = String(payload.pendingBookingId ?? payload.metadata?.pending_booking_id ?? "").trim();
   const planId = Number(payload.planId ?? payload.metadata?.plan_id ?? 0);
+  const isPendingBookingCheckout = !bookingId && !!pendingBookingId;
   const isPlanCheckout = !bookingId && planId > 0;
 
   let resolvedTitle = payload.title ?? "Pagamento no app";
   let resolvedDescription = payload.description ?? payload.title ?? "Pagamento";
   let resolvedBookingId: number | null = null;
+  let resolvedPendingBookingId: string | null = null;
   let resolvedClienteId: number | null = null;
   let resolvedClienteNome = "Cliente";
   let resolvedClienteCpf = "";
   let resolvedClienteTelefone: string | null = null;
   let resolvedPlanId: number | null = null;
+  let resolvedRequestDate = new Date().toISOString().slice(0, 10);
 
-  if (!bookingId && !isPlanCheckout) {
+  if (!bookingId && !isPendingBookingCheckout && !isPlanCheckout) {
     return NextResponse.json({ error: "Agendamento ou plano invalido para pagamento." }, { status: 400 });
   }
 
@@ -232,6 +237,51 @@ export async function POST(request: Request) {
       resolvedClienteNome = customerRes.data.nome;
       resolvedClienteCpf = String(customerRes.data.cpf ?? "");
       resolvedClienteTelefone = customerRes.data.telefone ?? null;
+    }
+  } else if (isPendingBookingCheckout) {
+    const pendingRes = await supabase
+      .from("agendamentos_pendentes")
+      .select("id,cliente,data,valor,status,servicos(nome)")
+      .eq("id", pendingBookingId)
+      .eq("status", "pending")
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle<{
+        id: string;
+        cliente: number;
+        data: string;
+        valor: number;
+        status: string;
+        servicos: { nome: string } | { nome: string }[] | null;
+      }>();
+
+    if (pendingRes.error || !pendingRes.data?.id) {
+      return NextResponse.json({ error: "Pre-agendamento nao encontrado ou expirado." }, { status: 404 });
+    }
+
+    resolvedPendingBookingId = pendingRes.data.id;
+    resolvedClienteId = pendingRes.data.cliente;
+    resolvedRequestDate = pendingRes.data.data;
+
+    const service = Array.isArray(pendingRes.data.servicos) ? pendingRes.data.servicos[0] : pendingRes.data.servicos;
+    if (service?.nome) {
+      resolvedTitle = payload.title ?? service.nome;
+      resolvedDescription = payload.description ?? service.nome;
+    }
+
+    const customerRes = await supabase
+      .from("clientes")
+      .select("nome,cpf,telefone")
+      .eq("id", pendingRes.data.cliente)
+      .maybeSingle<{ nome: string; cpf: string; telefone: string | null }>();
+
+    if (customerRes.data) {
+      resolvedClienteNome = customerRes.data.nome;
+      resolvedClienteCpf = String(customerRes.data.cpf ?? "");
+      resolvedClienteTelefone = customerRes.data.telefone ?? null;
+    }
+
+    if (!payload.items?.length && Number(payload.unit_price ?? 0) <= 0) {
+      payload.unit_price = Number(pendingRes.data.valor ?? 0);
     }
   } else {
     const planRes = await supabase
@@ -298,10 +348,11 @@ export async function POST(request: Request) {
       metadata: {
         ...(payload.metadata ?? {}),
         booking_id: resolvedBookingId,
+        pending_booking_id: resolvedPendingBookingId,
         plan_id: resolvedPlanId,
         checkout_title: resolvedTitle,
         payment_method: payload.paymentMethod ?? "all",
-        source: isPlanCheckout ? "plan_checkout" : "checkout_pro",
+        source: isPlanCheckout ? "plan_checkout" : isPendingBookingCheckout ? "booking_pending_checkout" : "checkout_pro",
       },
     })
     .select("id")
@@ -318,7 +369,7 @@ export async function POST(request: Request) {
       order_id: orderInsert.data.id,
       cliente_nome: resolvedClienteNome,
       cliente_cpf: resolvedClienteCpf,
-      data_reserva: new Date().toISOString().slice(0, 10),
+      data_reserva: resolvedRequestDate,
       servico_nome: resolvedTitle,
       valor: amount,
       tipo_pagamento: resolvePaymentMethodLabel(payload.paymentMethod),
@@ -326,8 +377,9 @@ export async function POST(request: Request) {
       sucesso: false,
       whatsapp: resolvedClienteTelefone,
       payload: {
-        source: isPlanCheckout ? "plan_checkout" : "preference",
+        source: isPlanCheckout ? "plan_checkout" : isPendingBookingCheckout ? "booking_pending_checkout" : "preference",
         payment_method: payload.paymentMethod ?? "all",
+        pending_booking_id: resolvedPendingBookingId,
         plan_id: resolvedPlanId,
       },
       updated_at: new Date().toISOString(),
@@ -372,6 +424,7 @@ export async function POST(request: Request) {
         metadata: {
           order_id: orderInsert.data.id,
           booking_id: resolvedBookingId,
+          pending_booking_id: resolvedPendingBookingId,
           plan_id: resolvedPlanId,
           payment_method: payload.paymentMethod ?? "all",
           ...(payload.metadata ?? {}),

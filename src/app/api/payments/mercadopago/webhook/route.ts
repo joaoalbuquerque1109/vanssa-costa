@@ -303,13 +303,76 @@ export async function POST(request: NextRequest) {
     const mappedStatus = mapMercadoPagoStatus(paymentData.status);
     const paidAt = paymentData.date_approved ?? null;
     const paymentMethodLabel = mapPaymentMethodLabel(paymentData.payment_type_id, paymentData.payment_method_id);
+    let resolvedBookingId = orderResult.data.booking_id ?? null;
+
+    const pendingBookingId = String(orderResult.data.metadata?.pending_booking_id ?? "").trim();
+    if (mappedStatus === "paid" && !resolvedBookingId && pendingBookingId) {
+      const pendingRes = await supabase
+        .from("agendamentos_pendentes")
+        .select("id,funcionario,cliente,data,hora,obs,servico,valor,phone,status,expires_at")
+        .eq("id", pendingBookingId)
+        .maybeSingle<{
+          id: string;
+          funcionario: number;
+          cliente: number;
+          data: string;
+          hora: string;
+          obs: string | null;
+          servico: number;
+          valor: number;
+          phone: string | null;
+          status: string;
+          expires_at: string;
+        }>();
+
+      if (pendingRes.error || !pendingRes.data?.id) {
+        throw new Error("Pre-agendamento nao encontrado para confirmacao apos pagamento.");
+      }
+
+      const slotAlreadyTaken = await supabase
+        .from("agendamentos")
+        .select("id")
+        .eq("funcionario", pendingRes.data.funcionario)
+        .eq("data", pendingRes.data.data)
+        .eq("hora", pendingRes.data.hora)
+        .maybeSingle<{ id: number }>();
+
+      if (slotAlreadyTaken.data?.id) {
+        resolvedBookingId = slotAlreadyTaken.data.id;
+      } else {
+        const bookingInsert = await supabase
+          .from("agendamentos")
+          .insert({
+            funcionario: pendingRes.data.funcionario,
+            cliente: pendingRes.data.cliente,
+            data: pendingRes.data.data,
+            hora: pendingRes.data.hora,
+            obs: pendingRes.data.obs,
+            status: "Pago",
+            servico: pendingRes.data.servico,
+            valor_pago: Number(pendingRes.data.valor ?? 0),
+            data_lanc: new Date().toISOString().slice(0, 10),
+            phone: pendingRes.data.phone,
+          })
+          .select("id")
+          .single<{ id: number }>();
+
+        if (bookingInsert.error || !bookingInsert.data?.id) {
+          throw new Error("Falha ao salvar agendamento apos pagamento aprovado.");
+        }
+
+        resolvedBookingId = bookingInsert.data.id;
+      }
+
+      await supabase.from("agendamentos_pendentes").delete().eq("id", pendingBookingId);
+    }
 
     const paymentUpsert = await supabase
       .from("payments")
       .upsert(
         {
           order_id: orderResult.data.id,
-          booking_id: orderResult.data.booking_id ?? null,
+          booking_id: resolvedBookingId,
           provider: "mercadopago",
           status: mappedStatus,
           amount: Number(paymentData.transaction_amount ?? 0),
@@ -335,6 +398,7 @@ export async function POST(request: NextRequest) {
       .update({
         status: orderStatus,
         mp_payment_id: paymentData.id,
+        booking_id: resolvedBookingId,
         paid_at: paidAt,
         updated_at: new Date().toISOString(),
       })
@@ -353,11 +417,11 @@ export async function POST(request: NextRequest) {
         }
       | null = null;
 
-    if (orderResult.data.booking_id) {
+    if (resolvedBookingId) {
       const bookingRes = await supabase
         .from("agendamentos")
         .select("id,data,clientes(nome,cpf,telefone),servicos(nome)")
-        .eq("id", orderResult.data.booking_id)
+        .eq("id", resolvedBookingId)
         .maybeSingle<{
           id: number;
           data: string;
@@ -387,7 +451,7 @@ export async function POST(request: NextRequest) {
 
     const financeiroUpsert = await supabase.from("pagamentos_financeiro").upsert(
       {
-        booking_id: orderResult.data.booking_id,
+        booking_id: resolvedBookingId,
         order_id: orderResult.data.id,
         payment_id: paymentUpsert.data.id,
         cliente_nome: cliente?.nome ?? "Cliente",
@@ -454,7 +518,7 @@ export async function POST(request: NextRequest) {
           processing_status: "processed",
           order_id: orderResult.data.id,
           payment_id: paymentUpsert.data.id,
-          booking_id: orderResult.data.booking_id ?? null,
+          booking_id: resolvedBookingId,
           processed_at: new Date().toISOString(),
           error_message: null,
         })

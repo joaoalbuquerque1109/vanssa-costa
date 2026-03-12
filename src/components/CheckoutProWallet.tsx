@@ -47,10 +47,12 @@ function loadScript(src: string) {
 
 export function CheckoutProWallet({
   bookingId,
+  pendingBookingId,
   initialTitle,
   initialAmount,
 }: {
-  bookingId: number;
+  bookingId?: number;
+  pendingBookingId?: string;
   initialTitle: string;
   initialAmount: number;
 }) {
@@ -135,9 +137,11 @@ export function CheckoutProWallet({
           quantity: 1,
           unit_price: value,
           bookingId,
+          pendingBookingId,
           paymentMethod: "pix_card",
           metadata: {
             booking_id: bookingId,
+            pending_booking_id: pendingBookingId,
           },
         }),
       });

@@ -151,7 +151,7 @@ export function BookingWizard({
 
       setSubmitState({
         loading: false,
-        success: "Agendamento confirmado com sucesso. Você será redirecionado para o pagamento.",
+        success: "Pagamento iniciado. Seu agendamento sera salvo apos a confirmacao do pagamento.",
         error: null,
       });
 
@@ -394,7 +394,7 @@ export function BookingWizard({
                 <textarea className="form-field md:col-span-2 min-h-32" placeholder="Observações" value={customer.obs} onChange={(e) => setCustomer({ ...customer, obs: e.target.value })} />
               </div>
               <div className="mt-6 rounded-3xl border border-emerald-300/20 bg-emerald-400/10 p-4 text-sm text-emerald-50">
-                Informe seus dados para reservar o horario e seguir para o pagamento.
+                Informe seus dados para seguir ao pagamento. O horario sera confirmado apos aprovacao do pagamento.
               </div>
             </div>
           ) : null}
