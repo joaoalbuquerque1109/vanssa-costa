@@ -175,7 +175,7 @@ export async function POST(request: Request) {
     .eq("id", 1)
     .maybeSingle<{ access_token_mp: string | null }>();
 
-  const accessToken = config.accessToken || String(configRes.data?.access_token_mp ?? "").trim();
+  const accessToken = String(configRes.data?.access_token_mp ?? "").trim() || config.accessToken;
   if (!accessToken) {
     return NextResponse.json({ error: "Access Token do Mercado Pago nao configurado." }, { status: 500 });
   }

@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
       .eq("id", 1)
       .maybeSingle<{ access_token_mp: string | null }>();
 
-    const accessToken = config.accessToken || String(configRes.data?.access_token_mp ?? "").trim();
+    const accessToken = String(configRes.data?.access_token_mp ?? "").trim() || config.accessToken;
     if (!accessToken) {
       throw new Error("MERCADO_PAGO_ACCESS_TOKEN não configurado.");
     }
