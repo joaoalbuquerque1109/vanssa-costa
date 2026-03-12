@@ -271,12 +271,28 @@ export async function POST(request: NextRequest) {
     const orderIdFromMetadata = parseUuid(paymentData.metadata?.order_id ?? null);
 
     const orderQuery = orderIdFromMetadata
-      ? supabase.from("orders").select("id,booking_id").eq("id", orderIdFromMetadata).maybeSingle<{ id: string; booking_id: number | null }>()
+      ? supabase
+          .from("orders")
+          .select("id,booking_id,cliente_id,description,metadata")
+          .eq("id", orderIdFromMetadata)
+          .maybeSingle<{
+            id: string;
+            booking_id: number | null;
+            cliente_id: number | null;
+            description: string | null;
+            metadata: Record<string, unknown> | null;
+          }>()
       : supabase
           .from("orders")
-          .select("id,booking_id")
+          .select("id,booking_id,cliente_id,description,metadata")
           .eq("external_reference", paymentData.external_reference ?? "")
-          .maybeSingle<{ id: string; booking_id: number | null }>();
+          .maybeSingle<{
+            id: string;
+            booking_id: number | null;
+            cliente_id: number | null;
+            description: string | null;
+            metadata: Record<string, unknown> | null;
+          }>();
 
     const orderResult = await orderQuery;
 
@@ -352,8 +368,22 @@ export async function POST(request: NextRequest) {
       bookingInfo = bookingRes.data ?? null;
     }
 
-    const cliente = Array.isArray(bookingInfo?.clientes) ? bookingInfo?.clientes[0] : bookingInfo?.clientes;
+    const clienteFromBooking = Array.isArray(bookingInfo?.clientes) ? bookingInfo?.clientes[0] : bookingInfo?.clientes;
     const servico = Array.isArray(bookingInfo?.servicos) ? bookingInfo?.servicos[0] : bookingInfo?.servicos;
+
+    let cliente = clienteFromBooking;
+    if (!cliente && orderResult.data.cliente_id) {
+      const customerRes = await supabase
+        .from("clientes")
+        .select("nome,cpf,telefone")
+        .eq("id", orderResult.data.cliente_id)
+        .maybeSingle<{ nome: string; cpf: string; telefone: string | null }>();
+
+      cliente = customerRes.data ?? null;
+    }
+
+    const metadataTitle = String(orderResult.data.metadata?.checkout_title ?? orderResult.data.description ?? "").trim();
+    const resolvedServiceName = servico?.nome ?? (metadataTitle || "Servico");
 
     const financeiroUpsert = await supabase.from("pagamentos_financeiro").upsert(
       {
@@ -363,7 +393,7 @@ export async function POST(request: NextRequest) {
         cliente_nome: cliente?.nome ?? "Cliente",
         cliente_cpf: String(cliente?.cpf ?? ""),
         data_reserva: bookingInfo?.data ?? new Date().toISOString().slice(0, 10),
-        servico_nome: servico?.nome ?? "Serviço",
+        servico_nome: resolvedServiceName,
         valor: Number(paymentData.transaction_amount ?? 0),
         tipo_pagamento: paymentMethodLabel,
         status_pagamento: mappedStatus,

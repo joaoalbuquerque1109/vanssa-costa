@@ -111,6 +111,20 @@ export type SubscriptionItemRow = {
   c12?: string | null;
 };
 
+export type PlanRow = {
+  id: number;
+  slug: string;
+  nome: string;
+  descricao?: string | null;
+  itens?: string[] | null;
+  inclui?: string[] | null;
+  texto_pagamento?: string | null;
+  validade_texto?: string | null;
+  preco: number;
+  ativo?: string | null;
+  ordem?: number | null;
+};
+
 export type AppointmentRow = {
   id: number;
   funcionario: number;

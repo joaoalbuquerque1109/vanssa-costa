@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { getMercadoPagoConfig } from "@/lib/mercadopago";
@@ -10,6 +10,14 @@ type PreferenceItemInput = {
   unit_price: number;
 };
 
+type CustomerInput = {
+  nome: string;
+  email: string;
+  telefone: string;
+  cpf: string;
+  dataNascimento: string;
+};
+
 type CreatePreferencePayload = {
   title?: string;
   quantity?: number;
@@ -19,6 +27,8 @@ type CreatePreferencePayload = {
   description?: string;
   metadata?: Record<string, unknown>;
   bookingId?: number;
+  planId?: number;
+  customer?: CustomerInput;
   paymentMethod?: "all" | "pix" | "card" | "boleto" | "pix_card";
 };
 
@@ -74,6 +84,80 @@ function resolvePaymentMethodLabel(method: CreatePreferencePayload["paymentMetho
   return "Todos";
 }
 
+async function upsertCustomerFromPayload(
+  supabase: NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>,
+  customer: CustomerInput | undefined,
+) {
+  const nome = String(customer?.nome ?? "").trim();
+  const email = String(customer?.email ?? "").trim().toLowerCase();
+  const telefone = String(customer?.telefone ?? "").trim();
+  const cpfDigits = String(customer?.cpf ?? "").replace(/\D/g, "");
+  const dataNascimento = String(customer?.dataNascimento ?? "").trim();
+
+  if (!nome || !email || !telefone || cpfDigits.length !== 11 || !dataNascimento) {
+    return { error: "Dados do cliente invalidos para compra do plano." as const };
+  }
+
+  const existingCustomer = await supabase
+    .from("clientes")
+    .select("id")
+    .eq("cpf", cpfDigits)
+    .limit(1)
+    .maybeSingle<{ id: number }>();
+
+  if (existingCustomer.error) {
+    return { error: "Nao foi possivel validar o cadastro do cliente." as const };
+  }
+
+  if (existingCustomer.data?.id) {
+    const updateRes = await supabase
+      .from("clientes")
+      .update({
+        nome,
+        email,
+        telefone,
+        data_nasc: dataNascimento,
+      })
+      .eq("id", existingCustomer.data.id);
+
+    if (updateRes.error) {
+      return { error: "Nao foi possivel atualizar os dados do cliente." as const };
+    }
+
+    return {
+      clienteId: existingCustomer.data.id,
+      clienteNome: nome,
+      clienteCpf: cpfDigits,
+      clienteTelefone: telefone,
+      error: null,
+    };
+  }
+
+  const insertRes = await supabase
+    .from("clientes")
+    .insert({
+      nome,
+      email,
+      telefone,
+      cpf: cpfDigits,
+      data_nasc: dataNascimento,
+    })
+    .select("id")
+    .single<{ id: number }>();
+
+  if (insertRes.error || !insertRes.data?.id) {
+    return { error: "Nao foi possivel cadastrar o cliente para o pagamento." as const };
+  }
+
+  return {
+    clienteId: insertRes.data.id,
+    clienteNome: nome,
+    clienteCpf: cpfDigits,
+    clienteTelefone: telefone,
+    error: null,
+  };
+}
+
 export async function POST(request: Request) {
   const config = getMercadoPagoConfig();
   const requestOrigin = new URL(request.url).origin;
@@ -97,35 +181,104 @@ export async function POST(request: Request) {
 
   const payload = (await request.json()) as CreatePreferencePayload;
   const bookingId = Number(payload.bookingId ?? payload.metadata?.booking_id ?? 0);
+  const planId = Number(payload.planId ?? payload.metadata?.plan_id ?? 0);
+  const isPlanCheckout = !bookingId && planId > 0;
+
+  let resolvedTitle = payload.title ?? "Pagamento no app";
+  let resolvedDescription = payload.description ?? payload.title ?? "Pagamento";
+  let resolvedBookingId: number | null = null;
+  let resolvedClienteId: number | null = null;
+  let resolvedClienteNome = "Cliente";
+  let resolvedClienteCpf = "";
+  let resolvedClienteTelefone: string | null = null;
+  let resolvedPlanId: number | null = null;
+
+  if (!bookingId && !isPlanCheckout) {
+    return NextResponse.json({ error: "Agendamento ou plano invalido para pagamento." }, { status: 400 });
+  }
+
+  if (bookingId) {
+    const bookingRes = await supabase
+      .from("agendamentos")
+      .select("id,status,cliente,servicos(nome)")
+      .eq("id", bookingId)
+      .limit(1)
+      .maybeSingle<{
+        id: number;
+        status: string;
+        cliente: number;
+        servicos: { nome: string } | { nome: string }[] | null;
+      }>();
+
+    if (bookingRes.error || !bookingRes.data?.id) {
+      return NextResponse.json({ error: "Agendamento nao encontrado para pagamento." }, { status: 404 });
+    }
+
+    resolvedBookingId = bookingRes.data.id;
+    resolvedClienteId = bookingRes.data.cliente;
+    const service = Array.isArray(bookingRes.data.servicos) ? bookingRes.data.servicos[0] : bookingRes.data.servicos;
+    if (service?.nome) {
+      resolvedTitle = payload.title ?? service.nome;
+      resolvedDescription = payload.description ?? service.nome;
+    }
+
+    const customerRes = await supabase
+      .from("clientes")
+      .select("nome,cpf,telefone")
+      .eq("id", bookingRes.data.cliente)
+      .maybeSingle<{ nome: string; cpf: string; telefone: string | null }>();
+
+    if (customerRes.data) {
+      resolvedClienteNome = customerRes.data.nome;
+      resolvedClienteCpf = String(customerRes.data.cpf ?? "");
+      resolvedClienteTelefone = customerRes.data.telefone ?? null;
+    }
+  } else {
+    const planRes = await supabase
+      .from("planos")
+      .select("id,nome,preco,ativo")
+      .eq("id", planId)
+      .maybeSingle<{ id: number; nome: string; preco: number; ativo: string | null }>();
+
+    if (planRes.error || !planRes.data?.id || planRes.data.ativo !== "Sim") {
+      return NextResponse.json({ error: "Plano nao encontrado ou inativo." }, { status: 404 });
+    }
+
+    const customerRes = await upsertCustomerFromPayload(supabase, payload.customer);
+    if (customerRes.error) {
+      return NextResponse.json({ error: customerRes.error }, { status: 400 });
+    }
+
+    resolvedPlanId = planRes.data.id;
+    resolvedClienteId = customerRes.clienteId;
+    resolvedClienteNome = customerRes.clienteNome;
+    resolvedClienteCpf = customerRes.clienteCpf;
+    resolvedClienteTelefone = customerRes.clienteTelefone;
+    resolvedTitle = payload.title ?? planRes.data.nome;
+    resolvedDescription = payload.description ?? `Plano ${planRes.data.nome}`;
+  }
 
   const items: PreferenceItemInput[] = payload.items?.length
     ? payload.items
     : [
         {
-          id: `booking_${bookingId}`,
-          title: payload.title ?? "Pagamento no app",
+          id: resolvedBookingId ? `booking_${resolvedBookingId}` : `plan_${resolvedPlanId}`,
+          title: resolvedTitle,
           quantity: Number(payload.quantity ?? 1),
           unit_price: Number(payload.unit_price ?? 0),
         },
       ];
 
+  if (isPlanCheckout && (!payload.items || !payload.items.length)) {
+    const planPriceRes = await supabase.from("planos").select("preco").eq("id", planId).maybeSingle<{ preco: number }>();
+    if (!planPriceRes.data?.preco) {
+      return NextResponse.json({ error: "Preco do plano invalido." }, { status: 400 });
+    }
+    items[0].unit_price = Number(planPriceRes.data.preco);
+  }
+
   if (!items.length || items.some((item) => !item.title || item.quantity <= 0 || item.unit_price <= 0)) {
     return NextResponse.json({ error: "Itens de pagamento invalidos." }, { status: 400 });
-  }
-
-  if (!bookingId) {
-    return NextResponse.json({ error: "Agendamento invalido para pagamento." }, { status: 400 });
-  }
-
-  const bookingRes = await supabase
-    .from("agendamentos")
-    .select("id,status,cliente")
-    .eq("id", bookingId)
-    .limit(1)
-    .maybeSingle<{ id: number; status: string; cliente: number }>();
-
-  if (bookingRes.error || !bookingRes.data?.id) {
-    return NextResponse.json({ error: "Agendamento nao encontrado para pagamento." }, { status: 404 });
   }
 
   const amount = items.reduce((acc, item) => acc + Number(item.quantity) * Number(item.unit_price), 0);
@@ -135,18 +288,20 @@ export async function POST(request: Request) {
     .from("orders")
     .insert({
       auth_user_id: null,
-      cliente_id: bookingRes.data.cliente,
+      cliente_id: resolvedClienteId,
       amount,
       currency: "BRL",
       status: "pending",
-      booking_id: bookingId,
-      description: payload.description ?? items[0]?.title,
+      booking_id: resolvedBookingId,
+      description: resolvedDescription,
       external_reference: externalReference,
       metadata: {
         ...(payload.metadata ?? {}),
-        booking_id: bookingId,
+        booking_id: resolvedBookingId,
+        plan_id: resolvedPlanId,
+        checkout_title: resolvedTitle,
         payment_method: payload.paymentMethod ?? "all",
-        source: "checkout_pro",
+        source: isPlanCheckout ? "plan_checkout" : "checkout_pro",
       },
     })
     .select("id")
@@ -157,36 +312,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nao foi possivel criar o pedido." }, { status: 500 });
   }
 
-  const bookingInfoRes = await supabase
-    .from("agendamentos")
-    .select("id,data,clientes(nome,cpf,telefone),servicos(nome)")
-    .eq("id", bookingId)
-    .maybeSingle<{
-      id: number;
-      data: string;
-      clientes: { nome: string; cpf: string; telefone: string | null } | { nome: string; cpf: string; telefone: string | null }[] | null;
-      servicos: { nome: string } | { nome: string }[] | null;
-    }>();
-
-  const cliente = Array.isArray(bookingInfoRes.data?.clientes) ? bookingInfoRes.data?.clientes[0] : bookingInfoRes.data?.clientes;
-  const servico = Array.isArray(bookingInfoRes.data?.servicos) ? bookingInfoRes.data?.servicos[0] : bookingInfoRes.data?.servicos;
-
   await supabase.from("pagamentos_financeiro").upsert(
     {
-      booking_id: bookingId,
+      booking_id: resolvedBookingId,
       order_id: orderInsert.data.id,
-      cliente_nome: cliente?.nome ?? "Cliente",
-      cliente_cpf: String(cliente?.cpf ?? ""),
-      data_reserva: bookingInfoRes.data?.data ?? new Date().toISOString().slice(0, 10),
-      servico_nome: servico?.nome ?? (payload.title ?? "Servico"),
+      cliente_nome: resolvedClienteNome,
+      cliente_cpf: resolvedClienteCpf,
+      data_reserva: new Date().toISOString().slice(0, 10),
+      servico_nome: resolvedTitle,
       valor: amount,
       tipo_pagamento: resolvePaymentMethodLabel(payload.paymentMethod),
       status_pagamento: "pending",
       sucesso: false,
-      whatsapp: cliente?.telefone ?? null,
+      whatsapp: resolvedClienteTelefone,
       payload: {
-        source: "preference",
+        source: isPlanCheckout ? "plan_checkout" : "preference",
         payment_method: payload.paymentMethod ?? "all",
+        plan_id: resolvedPlanId,
       },
       updated_at: new Date().toISOString(),
     },
@@ -195,10 +337,13 @@ export async function POST(request: Request) {
 
   const notificationUrl = config.webhookUrl ?? `${appBaseUrl}/api/payments/mercadopago/webhook`;
 
+  const resultBase = "/pagamento/resultado";
+  const queryPlan = resolvedPlanId ? `&plan_id=${resolvedPlanId}` : "";
+  const queryBooking = resolvedBookingId ? `&booking_id=${resolvedBookingId}` : "";
   const backUrls = {
-    success: `${appBaseUrl}/pagamento/resultado?status=approved&booking_id=${bookingId}&order_id=${orderInsert.data.id}`,
-    failure: `${appBaseUrl}/pagamento/resultado?status=rejected&booking_id=${bookingId}&order_id=${orderInsert.data.id}`,
-    pending: `${appBaseUrl}/pagamento/resultado?status=pending&booking_id=${bookingId}&order_id=${orderInsert.data.id}`,
+    success: `${appBaseUrl}${resultBase}?status=approved${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}`,
+    failure: `${appBaseUrl}${resultBase}?status=rejected${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}`,
+    pending: `${appBaseUrl}${resultBase}?status=pending${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}`,
   };
   const canUseAutoReturn = backUrls.success.startsWith("https://");
 
@@ -226,7 +371,8 @@ export async function POST(request: Request) {
         auto_return: canUseAutoReturn ? "approved" : undefined,
         metadata: {
           order_id: orderInsert.data.id,
-          booking_id: bookingId,
+          booking_id: resolvedBookingId,
+          plan_id: resolvedPlanId,
           payment_method: payload.paymentMethod ?? "all",
           ...(payload.metadata ?? {}),
         },

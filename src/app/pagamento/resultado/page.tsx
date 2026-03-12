@@ -9,6 +9,7 @@ type ResultSearchParams = {
   preference_id?: string;
   booking_id?: string;
   order_id?: string;
+  plan_id?: string;
 };
 
 function normalizeStatus(value?: string) {
@@ -52,11 +53,12 @@ export default async function ResultadoPagamentoPage({
               <p><strong>merchant_order_id:</strong> {params.merchant_order_id ?? "-"}</p>
               <p><strong>preference_id:</strong> {params.preference_id ?? "-"}</p>
               <p><strong>booking_id:</strong> {params.booking_id ?? "-"}</p>
+              <p><strong>plan_id:</strong> {params.plan_id ?? "-"}</p>
               <p><strong>order_id:</strong> {params.order_id ?? "-"}</p>
             </div>
 
-            <Link href="/pagamento" className="legacy-button mt-6">
-              Voltar para pagamento
+            <Link href={params.plan_id ? "/assinatura" : "/pagamento"} className="legacy-button mt-6">
+              {params.plan_id ? "Voltar para planos" : "Voltar para pagamento"}
             </Link>
           </div>
         </div>
