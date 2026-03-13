@@ -24,8 +24,7 @@ export async function GET() {
 
   const res = await supabase
     .from("pagamentos_financeiro")
-    .select("id,cliente_nome,cliente_cpf,servico_nome,created_at,sucesso")
-    .filter("payload->>plan_id", "not.is", "null")
+    .select("id,order_id,cliente_nome,cliente_cpf,servico_nome,created_at,sucesso,payload")
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
@@ -33,5 +32,43 @@ export async function GET() {
     return NextResponse.json({ error: "Falha ao carregar pagamentos de planos." }, { status: 500 });
   }
 
-  return NextResponse.json({ rows: (res.data ?? []) as PlanPaymentRow[] });
+  const rows = (res.data ?? []) as Array<
+    PlanPaymentRow & { order_id?: string | null; payload?: Record<string, unknown> | null }
+  >;
+
+  const orderIds = rows.map((row) => row.order_id).filter((value): value is string => Boolean(value));
+  let orderPlanIds = new Map<string, unknown>();
+
+  if (orderIds.length) {
+    const ordersRes = await supabase
+      .from("orders")
+      .select("id,metadata")
+      .in("id", orderIds)
+      .returns<Array<{ id: string; metadata: Record<string, unknown> | null }>>();
+
+    if (!ordersRes.error) {
+      orderPlanIds = new Map(
+        (ordersRes.data ?? []).map((order) => [order.id, order.metadata?.plan_id ?? null]),
+      );
+    }
+  }
+
+  const filteredRows = rows.filter((row) => {
+    const payloadPlanId = row.payload?.plan_id;
+    if (payloadPlanId !== null && payloadPlanId !== undefined && String(payloadPlanId).trim() !== "") return true;
+
+    const orderPlanId = row.order_id ? orderPlanIds.get(row.order_id) : null;
+    return orderPlanId !== null && orderPlanId !== undefined && String(orderPlanId).trim() !== "";
+  });
+
+  return NextResponse.json({
+    rows: filteredRows.map(({ id, cliente_nome, cliente_cpf, servico_nome, created_at, sucesso }) => ({
+      id,
+      cliente_nome,
+      cliente_cpf,
+      servico_nome,
+      created_at,
+      sucesso,
+    })),
+  });
 }

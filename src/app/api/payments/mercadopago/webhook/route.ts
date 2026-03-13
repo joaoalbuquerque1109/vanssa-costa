@@ -464,6 +464,21 @@ export async function POST(request: NextRequest) {
     const metadataTitle = String(orderResult.data.metadata?.checkout_title ?? orderResult.data.description ?? "").trim();
     const resolvedServiceName = servico?.nome ?? (metadataTitle || "Servico");
 
+    const existingFinanceiro = await supabase
+      .from("pagamentos_financeiro")
+      .select("payload")
+      .eq("order_id", orderResult.data.id)
+      .maybeSingle<{ payload: Record<string, unknown> | null }>();
+
+    const mergedPayload = {
+      ...(existingFinanceiro.data?.payload ?? {}),
+      ...paymentData,
+      order_id: orderResult.data.id,
+      plan_id: orderResult.data.metadata?.plan_id ?? null,
+      booking_id: resolvedBookingId,
+      pending_booking_id: orderResult.data.metadata?.pending_booking_id ?? null,
+    };
+
     const financeiroUpsert = await supabase.from("pagamentos_financeiro").upsert(
       {
         booking_id: resolvedBookingId,
@@ -478,7 +493,7 @@ export async function POST(request: NextRequest) {
         status_pagamento: mappedStatus,
         sucesso: mappedStatus === "paid",
         whatsapp: cliente?.telefone ?? null,
-        payload: paymentData,
+        payload: mergedPayload,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "order_id" },

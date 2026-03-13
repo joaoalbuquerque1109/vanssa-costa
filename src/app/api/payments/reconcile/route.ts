@@ -44,6 +44,13 @@ function mapPaymentMethodLabel(paymentTypeId?: string | null, paymentMethodId?: 
   return "Nao identificado";
 }
 
+type BookingInfo = {
+  id: number;
+  data: string;
+  clientes: { nome: string; cpf: string; telefone: string | null } | { nome: string; cpf: string; telefone: string | null }[] | null;
+  servicos: { nome: string } | { nome: string }[] | null;
+};
+
 async function getAccessToken(fallbackToken?: string | null) {
   return String(fallbackToken ?? "").trim();
 }
@@ -355,18 +362,74 @@ export async function POST(request: NextRequest) {
         .eq("id", resolvedBookingId);
     }
 
-    await supabase
+    let bookingInfo: BookingInfo | null = null;
+
+    if (resolvedBookingId) {
+      const bookingRes = await supabase
+        .from("agendamentos")
+        .select("id,data,clientes(nome,cpf,telefone),servicos(nome)")
+        .eq("id", resolvedBookingId)
+        .maybeSingle<BookingInfo>();
+
+      bookingInfo = bookingRes.data ?? null;
+    }
+
+    const clienteFromBooking = Array.isArray(bookingInfo?.clientes) ? bookingInfo?.clientes[0] : bookingInfo?.clientes;
+    const servicoFromBooking = Array.isArray(bookingInfo?.servicos) ? bookingInfo?.servicos[0] : bookingInfo?.servicos;
+
+    let cliente = clienteFromBooking;
+    if (!cliente && resolvedOrder.cliente_id) {
+      const customerRes = await supabase
+        .from("clientes")
+        .select("nome,cpf,telefone")
+        .eq("id", resolvedOrder.cliente_id)
+        .maybeSingle<{ nome: string; cpf: string; telefone: string | null }>();
+
+      cliente = customerRes.data ?? null;
+    }
+
+    const existingFinanceiro = await supabase
       .from("pagamentos_financeiro")
-      .update({
-        booking_id: resolvedBookingId,
-        payment_id: paymentUpsert.data.id,
-        tipo_pagamento: paymentMethodLabel,
-        status_pagamento: mappedStatus,
-        sucesso: mappedStatus === "paid",
-        payload: paymentData,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("order_id", resolvedOrder.id);
+      .select("payload")
+      .eq("order_id", resolvedOrder.id)
+      .maybeSingle<{ payload: Record<string, unknown> | null }>();
+
+    const metadataTitle = String(resolvedOrder.metadata?.checkout_title ?? resolvedOrder.description ?? "").trim();
+    const resolvedServiceName = servicoFromBooking?.nome ?? (metadataTitle || "Servico");
+    const mergedPayload = {
+      ...(existingFinanceiro.data?.payload ?? {}),
+      ...paymentData,
+      order_id: resolvedOrder.id,
+      plan_id: resolvedOrder.metadata?.plan_id ?? null,
+      booking_id: resolvedBookingId,
+      pending_booking_id: resolvedOrder.metadata?.pending_booking_id ?? null,
+    };
+
+    const financeiroUpsert = await supabase
+      .from("pagamentos_financeiro")
+      .upsert(
+        {
+          booking_id: resolvedBookingId,
+          order_id: resolvedOrder.id,
+          payment_id: paymentUpsert.data.id,
+          cliente_nome: cliente?.nome ?? "Cliente",
+          cliente_cpf: String(cliente?.cpf ?? ""),
+          data_reserva: bookingInfo?.data ?? new Date().toISOString().slice(0, 10),
+          servico_nome: resolvedServiceName,
+          valor: Number(paymentData.transaction_amount ?? 0),
+          tipo_pagamento: paymentMethodLabel,
+          status_pagamento: mappedStatus,
+          sucesso: mappedStatus === "paid",
+          whatsapp: cliente?.telefone ?? null,
+          payload: mergedPayload,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "order_id" },
+      );
+
+    if (financeiroUpsert.error) {
+      throw new Error("Falha ao atualizar financeiro.");
+    }
 
     console.info("[mp/reconcile] reconciled", {
       orderId: resolvedOrder.id,
