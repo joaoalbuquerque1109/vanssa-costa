@@ -44,17 +44,8 @@ function mapPaymentMethodLabel(paymentTypeId?: string | null, paymentMethodId?: 
   return "Nao identificado";
 }
 
-async function getAccessToken(
-  supabase: NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>,
-  fallbackToken?: string | null,
-) {
-  const configRes = await supabase
-    .from("config")
-    .select("access_token_mp")
-    .eq("id", 1)
-    .maybeSingle<{ access_token_mp: string | null }>();
-
-  return String(configRes.data?.access_token_mp ?? "").trim() || String(fallbackToken ?? "").trim();
+async function getAccessToken(fallbackToken?: string | null) {
+  return String(fallbackToken ?? "").trim();
 }
 
 async function fetchPaymentById(accessToken: string, paymentId: string) {
@@ -187,7 +178,7 @@ export async function POST(request: NextRequest) {
   }
 
   const config = getMercadoPagoConfig();
-  const accessToken = await getAccessToken(supabase, config.accessToken);
+  const accessToken = await getAccessToken(config.accessToken);
   if (!accessToken) {
     return NextResponse.json({ error: "MERCADO_PAGO_ACCESS_TOKEN nao configurado." }, { status: 500 });
   }

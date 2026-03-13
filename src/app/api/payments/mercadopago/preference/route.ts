@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-export { POST } from "../../asaas/checkout/route";
-=======
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
@@ -215,13 +212,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Supabase nao configurado." }, { status: 500 });
   }
 
-  const configRes = await supabase
-    .from("config")
-    .select("access_token_mp")
-    .eq("id", 1)
-    .maybeSingle<{ access_token_mp: string | null }>();
-
-  const accessToken = String(configRes.data?.access_token_mp ?? "").trim() || config.accessToken;
+  const accessToken = String(config.accessToken ?? "").trim();
   if (!accessToken) {
     return NextResponse.json({ error: "Access Token do Mercado Pago nao configurado." }, { status: 500 });
   }
@@ -446,15 +437,14 @@ export async function POST(request: Request) {
   }
 
   const resultBase = "/pagamento/resultado";
-  const pendingReturnBase = "/api/mercado-pago/pending";
   const queryPlan = resolvedPlanId ? `&plan_id=${resolvedPlanId}` : "";
   const queryBooking = resolvedBookingId ? `&booking_id=${resolvedBookingId}` : "";
   const queryExternalReference = `&external_reference=${encodeURIComponent(externalReference)}`;
-  const queryOrder = `order_id=${orderInsert.data.id}`;
+  const resultUrlBase = `${appBaseUrl}${resultBase}?order_id=${orderInsert.data.id}${queryBooking}${queryPlan}${queryExternalReference}`;
   const backUrls = {
-    success: `${appBaseUrl}${resultBase}?status=approved${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}${queryExternalReference}`,
-    failure: `${appBaseUrl}${resultBase}?status=rejected${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}${queryExternalReference}`,
-    pending: `${appBaseUrl}${pendingReturnBase}?${queryOrder}${queryBooking}${queryPlan}${queryExternalReference}`,
+    success: `${resultUrlBase}&status=approved`,
+    failure: `${resultUrlBase}&status=rejected`,
+    pending: `${resultUrlBase}&status=pending`,
   };
   const canUseAutoReturn = backUrls.success.startsWith("https://");
 
@@ -526,4 +516,3 @@ export async function POST(request: Request) {
     back_urls: backUrls,
   });
 }
->>>>>>> b0f0fc1f875ccc73cc93736b7d52cd83146afd0e

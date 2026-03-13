@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-export { GET, POST } from "../../asaas/webhook/route";
-=======
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getMercadoPagoConfig, mapMercadoPagoStatus, MERCADO_PAGO_API_URL } from "@/lib/mercadopago";
 import { createHmac, timingSafeEqual } from "crypto";
@@ -16,17 +13,17 @@ function mapPaymentMethodLabel(paymentTypeId?: string | null, paymentMethodId?: 
   const type = String(paymentTypeId ?? "").toLowerCase();
   const method = String(paymentMethodId ?? "").toLowerCase();
 
-  if (type === "credit_card") return "Cartão de crédito";
-  if (type === "debit_card") return "Cartão de débito";
+  if (type === "credit_card") return "Cartao de credito";
+  if (type === "debit_card") return "Cartao de debito";
   if (type === "bank_transfer") return "Pix";
   if (type === "ticket") return "Boleto";
 
   if (method.includes("pix")) return "Pix";
-  if (method.includes("deb")) return "Cartão de débito";
-  if (method.includes("credit") || method.includes("visa") || method.includes("master")) return "Cartão de crédito";
+  if (method.includes("deb")) return "Cartao de debito";
+  if (method.includes("credit") || method.includes("visa") || method.includes("master")) return "Cartao de credito";
   if (method.includes("bol") || method.includes("ticket")) return "Boleto";
 
-  return "Não identificado";
+  return "Nao identificado";
 }
 
 function formatDateBr(dateIso: string) {
@@ -145,7 +142,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
-    return NextResponse.json({ error: "Supabase não configurado." }, { status: 500 });
+    return NextResponse.json({ error: "Supabase nao configurado." }, { status: 500 });
   }
 
   let payload: Record<string, unknown> = {};
@@ -156,7 +153,11 @@ export async function POST(request: NextRequest) {
     payload = {};
   }
 
-  const type = (payload.type as string | undefined) ?? request.nextUrl.searchParams.get("type") ?? request.nextUrl.searchParams.get("topic") ?? "unknown";
+  const type =
+    (payload.type as string | undefined) ??
+    request.nextUrl.searchParams.get("type") ??
+    request.nextUrl.searchParams.get("topic") ??
+    "unknown";
   const paymentIdFromPayload =
     (payload["data.id"] as string | undefined) ??
     ((payload.data as { id?: string | number } | undefined)?.id?.toString()) ??
@@ -253,15 +254,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, ignored: true });
     }
 
-    const configRes = await supabase
-      .from("config")
-      .select("access_token_mp")
-      .eq("id", 1)
-      .maybeSingle<{ access_token_mp: string | null }>();
-
-    const accessToken = String(configRes.data?.access_token_mp ?? "").trim() || config.accessToken;
+    const accessToken = String(config.accessToken ?? "").trim();
     if (!accessToken) {
-      throw new Error("MERCADO_PAGO_ACCESS_TOKEN não configurado.");
+      throw new Error("MERCADO_PAGO_ACCESS_TOKEN nao configurado.");
     }
 
     const paymentResponse = await fetch(`${MERCADO_PAGO_API_URL}/v1/payments/${paymentId}`, {
@@ -317,7 +312,7 @@ export async function POST(request: NextRequest) {
     const orderResult = await orderQuery;
 
     if (!orderResult.data?.id) {
-      throw new Error("Pedido não encontrado para o pagamento recebido.");
+      throw new Error("Pedido nao encontrado para o pagamento recebido.");
     }
 
     const mappedStatus = mapMercadoPagoStatus(paymentData.status);
@@ -498,7 +493,7 @@ export async function POST(request: NextRequest) {
     if (mappedStatus === "paid" && bookingInfo?.id && cliente) {
       const paidValue = Number(paymentData.transaction_amount ?? 0);
       const message =
-        `Olá ${cliente.nome}, seu pagamento foi confirmado!\n` +
+        `Ola ${cliente.nome}, seu pagamento foi confirmado!\n` +
         `CPF: ${cliente.cpf}\n` +
         `Data marcada: ${formatDateBr(bookingInfo.data)}\n` +
         `Valor pago: ${formatCurrencyBr(paidValue)}\n` +
@@ -561,6 +556,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Falha ao processar webhook." }, { status: 500 });
   }
 }
-
-
->>>>>>> b0f0fc1f875ccc73cc93736b7d52cd83146afd0e

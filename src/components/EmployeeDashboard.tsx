@@ -345,9 +345,6 @@ export function EmployeeDashboard({ role }: { role: Role }) {
   const [appointmentCustomerFilter, setAppointmentCustomerFilter] = useState<number>(0);
   const [financeRows, setFinanceRows] = useState<FinancePaymentRow[]>([]);
   const [planRows, setPlanRows] = useState<PlanPaymentRow[]>([]);
-  const [paymentSettings, setPaymentSettings] = useState({ public_key_mp: "", access_token_mp: "" });
-  const [paymentSettingsSaving, setPaymentSettingsSaving] = useState(false);
-  const [paymentSettingsFeedback, setPaymentSettingsFeedback] = useState<string | null>(null);
 
   const [showCreateEmployeeModal, setShowCreateEmployeeModal] = useState(false);
   const [showUpdateEmployeeModal, setShowUpdateEmployeeModal] = useState(false);
@@ -521,12 +518,11 @@ export function EmployeeDashboard({ role }: { role: Role }) {
     }
 
     if (role === "administrador") {
-      const [employeesRes, customersRes, plansRes, financeRes, financeSettingsRes] = await Promise.all([
+      const [employeesRes, customersRes, plansRes, financeRes] = await Promise.all([
         fetch("/api/portal/admin/employees", { cache: "no-store" }),
         fetch("/api/portal/customers", { cache: "no-store" }),
         fetch("/api/portal/plans", { cache: "no-store" }),
         fetch("/api/portal/finance", { cache: "no-store" }),
-        fetch("/api/portal/finance/settings", { cache: "no-store" }),
       ]);
       if (employeesRes.ok) {
         const data = (await employeesRes.json()) as { employees: Employee[]; links: Array<{ funcionario: number; servico: number }> };
@@ -545,37 +541,6 @@ export function EmployeeDashboard({ role }: { role: Role }) {
         const data = (await financeRes.json()) as { rows: FinancePaymentRow[] };
         setFinanceRows(data.rows ?? []);
       }
-      if (financeSettingsRes.ok) {
-        const data = (await financeSettingsRes.json()) as { settings: { public_key_mp?: string; access_token_mp?: string } };
-        setPaymentSettings({
-          public_key_mp: data.settings?.public_key_mp ?? "",
-          access_token_mp: data.settings?.access_token_mp ?? "",
-        });
-      }
-    }
-  };
-
-  const savePaymentSettings = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPaymentSettingsFeedback(null);
-    setPaymentSettingsSaving(true);
-    try {
-      const response = await fetch("/api/portal/finance/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(paymentSettings),
-      });
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) {
-        setPaymentSettingsFeedback(data.error ?? "Falha ao salvar credenciais do Asaas.");
-        return;
-      }
-
-      setPaymentSettingsFeedback("Credenciais do Asaas salvas com sucesso.");
-    } catch {
-      setPaymentSettingsFeedback("Falha de conexão ao salvar as chaves. Verifique a API e tente novamente.");
-    } finally {
-      setPaymentSettingsSaving(false);
     }
   };
 
@@ -1550,32 +1515,9 @@ export function EmployeeDashboard({ role }: { role: Role }) {
 
       {role === "administrador" && activeSection === "finance" ? (
         <div id="finance" className="space-y-6 rounded-[32px] bg-white p-4 shadow-soft sm:p-8">
-          <details className="rounded-2xl border border-slate-200 p-4">
-            <summary className="cursor-pointer font-semibold text-slate-900">Credenciais do Asaas</summary>
-            <form className="mt-4 grid gap-3" onSubmit={savePaymentSettings}>
-              <label className="text-sm font-medium text-slate-700">Token do webhook</label>
-              <input
-                className="form-field"
-                placeholder="Defina o mesmo token configurado no webhook do Asaas"
-                value={paymentSettings.public_key_mp}
-                onChange={(e) => setPaymentSettings((prev) => ({ ...prev, public_key_mp: e.target.value }))}
-              />
-              <label className="text-sm font-medium text-slate-700">API Key</label>
-              <input
-                className="form-field"
-                type="password"
-                placeholder="$aact_..."
-                value={paymentSettings.access_token_mp}
-                onChange={(e) => setPaymentSettings((prev) => ({ ...prev, access_token_mp: e.target.value }))}
-              />
-              <div className="flex items-center gap-3">
-                <button type="submit" className="legacy-button" disabled={paymentSettingsSaving}>
-                  {paymentSettingsSaving ? "Salvando..." : "Salvar credenciais"}
-                </button>
-                {paymentSettingsFeedback ? <p className="text-sm text-slate-600">{paymentSettingsFeedback}</p> : null}
-              </div>
-            </form>
-          </details>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            As credenciais de pagamento sao gerenciadas por variaveis de ambiente no deploy.
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead>
