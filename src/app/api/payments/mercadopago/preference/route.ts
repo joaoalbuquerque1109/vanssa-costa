@@ -63,18 +63,18 @@ function isPublicHttpsUrl(value: string) {
 
 function resolveAppBaseUrl(request: Request, configuredAppUrl?: string | null) {
   const configured = String(configuredAppUrl ?? "").trim();
-  if (configured) return configured;
+  if (configured) return configured.replace(/\/+$/, "");
 
   const forwardedHost = String(request.headers.get("x-forwarded-host") ?? "").trim();
   if (forwardedHost) {
     const forwardedProto = String(request.headers.get("x-forwarded-proto") ?? "https").trim() || "https";
-    return `${forwardedProto}://${forwardedHost}`;
+    return `${forwardedProto}://${forwardedHost}`.replace(/\/+$/, "");
   }
 
   const vercelUrl = String(process.env.VERCEL_URL ?? "").trim();
-  if (vercelUrl) return `https://${vercelUrl}`;
+  if (vercelUrl) return `https://${vercelUrl}`.replace(/\/+$/, "");
 
-  return new URL(request.url).origin;
+  return new URL(request.url).origin.replace(/\/+$/, "");
 }
 
 function resolvePaymentMethods(method: CreatePreferencePayload["paymentMethod"]) {
@@ -430,7 +430,7 @@ export async function POST(request: Request) {
     { onConflict: "order_id" },
   );
 
-  const configuredWebhookUrl = String(config.webhookUrl ?? "").trim();
+  const configuredWebhookUrl = String(config.webhookUrl ?? "").trim().replace(/\/+$/, "");
   const notificationUrl = configuredWebhookUrl || `${appBaseUrl}/api/mercadopago/webhook`;
   if (!isPublicHttpsUrl(notificationUrl)) {
     return NextResponse.json(
