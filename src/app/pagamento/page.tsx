@@ -26,6 +26,7 @@ export default async function PagamentoPage({
       .from("agendamentos_pendentes")
       .select("id,status,valor,servicos(nome)")
       .eq("id", pendingId)
+      .in("status", ["pending", "pending_payment"])
       .gt("expires_at", new Date().toISOString())
       .maybeSingle<{
         id: string;
@@ -37,7 +38,7 @@ export default async function PagamentoPage({
     const pending = pendingRes.data;
     const service = Array.isArray(pending?.servicos) ? pending?.servicos[0] : pending?.servicos;
 
-    if (!pending || pending.status !== "pending") {
+    if (!pending) {
       redirect("/agendamentos");
     }
 

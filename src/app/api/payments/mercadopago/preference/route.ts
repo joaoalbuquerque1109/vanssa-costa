@@ -33,6 +33,50 @@ type CreatePreferencePayload = {
   paymentMethod?: "all" | "pix" | "card" | "boleto" | "pix_card";
 };
 
+function isPrivateIpv4(hostname: string) {
+  const parts = hostname.split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) return false;
+
+  const [a, b] = parts;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
+function isPublicHttpsUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:") return false;
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (!hostname) return false;
+    if (hostname === "localhost" || hostname.endsWith(".local")) return false;
+    if (hostname === "::1") return false;
+    if (isPrivateIpv4(hostname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveAppBaseUrl(request: Request, configuredAppUrl?: string | null) {
+  const configured = String(configuredAppUrl ?? "").trim();
+  if (configured) return configured;
+
+  const forwardedHost = String(request.headers.get("x-forwarded-host") ?? "").trim();
+  if (forwardedHost) {
+    const forwardedProto = String(request.headers.get("x-forwarded-proto") ?? "https").trim() || "https";
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
+  const vercelUrl = String(process.env.VERCEL_URL ?? "").trim();
+  if (vercelUrl) return `https://${vercelUrl}`;
+
+  return new URL(request.url).origin;
+}
+
 function resolvePaymentMethods(method: CreatePreferencePayload["paymentMethod"]) {
   if (!method || method === "all") return undefined;
 
@@ -161,8 +205,7 @@ async function upsertCustomerFromPayload(
 
 export async function POST(request: Request) {
   const config = getMercadoPagoConfig();
-  const requestOrigin = new URL(request.url).origin;
-  const appBaseUrl = String(config.appUrl ?? "").trim() || requestOrigin;
+  const appBaseUrl = resolveAppBaseUrl(request, config.appUrl);
 
   const supabase = await createSupabaseServerClient();
   if (!supabase) {
@@ -243,7 +286,7 @@ export async function POST(request: Request) {
       .from("agendamentos_pendentes")
       .select("id,cliente,data,valor,status,servicos(nome)")
       .eq("id", pendingBookingId)
-      .eq("status", "pending")
+      .in("status", ["pending", "pending_payment"])
       .gt("expires_at", new Date().toISOString())
       .maybeSingle<{
         id: string;
@@ -387,15 +430,26 @@ export async function POST(request: Request) {
     { onConflict: "order_id" },
   );
 
-  const notificationUrl = config.webhookUrl ?? `${appBaseUrl}/api/payments/mercadopago/webhook`;
+  const configuredWebhookUrl = String(config.webhookUrl ?? "").trim();
+  const notificationUrl = configuredWebhookUrl || `${appBaseUrl}/api/mercadopago/webhook`;
+  if (!isPublicHttpsUrl(notificationUrl)) {
+    return NextResponse.json(
+      {
+        error: "Webhook URL invalida. Configure MERCADO_PAGO_WEBHOOK_URL com URL publica HTTPS.",
+        notification_url: notificationUrl,
+      },
+      { status: 400 },
+    );
+  }
 
   const resultBase = "/pagamento/resultado";
   const queryPlan = resolvedPlanId ? `&plan_id=${resolvedPlanId}` : "";
   const queryBooking = resolvedBookingId ? `&booking_id=${resolvedBookingId}` : "";
+  const queryExternalReference = `&external_reference=${encodeURIComponent(externalReference)}`;
   const backUrls = {
-    success: `${appBaseUrl}${resultBase}?status=approved${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}`,
-    failure: `${appBaseUrl}${resultBase}?status=rejected${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}`,
-    pending: `${appBaseUrl}${resultBase}?status=pending${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}`,
+    success: `${appBaseUrl}${resultBase}?status=approved${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}${queryExternalReference}`,
+    failure: `${appBaseUrl}${resultBase}?status=rejected${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}${queryExternalReference}`,
+    pending: `${appBaseUrl}${resultBase}?status=pending${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}${queryExternalReference}`,
   };
   const canUseAutoReturn = backUrls.success.startsWith("https://");
 
@@ -460,8 +514,10 @@ export async function POST(request: Request) {
     id: preferenceData.id,
     order_id: orderInsert.data.id,
     preference_id: preferenceData.id,
+    external_reference: externalReference,
     init_point: preferenceData.init_point,
     sandbox_init_point: preferenceData.sandbox_init_point,
+    notification_url: notificationUrl,
     back_urls: backUrls,
   });
 }
