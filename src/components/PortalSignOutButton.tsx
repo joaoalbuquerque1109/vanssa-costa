@@ -1,18 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 export function PortalSignOutButton({ variant = "light" }: { variant?: "light" | "dark" }) {
-  const router = useRouter();
-
   const onSignOut = async () => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
 
     await supabase.auth.signOut();
-    router.push("/acesso-cliente");
-    router.refresh();
+    window.location.assign("/acesso-cliente");
   };
 
   return (

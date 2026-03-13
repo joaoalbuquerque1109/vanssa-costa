@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { RouteTransitionOverlay } from "@/components/RouteTransitionOverlay";
 import type { ConfigRow } from "@/types/site";
 
 const PAGE_CONFIG: ConfigRow = {
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR">
       <body>
+        <RouteTransitionOverlay />
         <Header config={PAGE_CONFIG} />
         {children}
         <Footer config={PAGE_CONFIG} />

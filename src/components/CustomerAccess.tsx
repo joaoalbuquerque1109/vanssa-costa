@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 export function CustomerAccess() {
@@ -12,12 +11,9 @@ export function CustomerAccess() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const router = useRouter();
-
   const runLoginRedirect = async () => {
     await fetch("/api/portal/login-event", { method: "POST" });
-    router.push("/portal");
-    router.refresh();
+    window.location.assign("/portal");
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
