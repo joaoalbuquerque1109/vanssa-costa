@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PageHero } from "@/components/PageHero";
 
 type ReconcileResponse = {
@@ -11,6 +12,14 @@ type ReconcileResponse = {
   payment_status?: string;
   booking_status?: string;
   error?: string;
+};
+
+type PaymentStatusResponse = {
+  ok?: boolean;
+  confirmed?: boolean;
+  order_status?: string | null;
+  payment_status?: string | null;
+  payment_id?: string | null;
 };
 
 type UiState = "confirming" | "approved" | "processing" | "rejected" | "retrying";
@@ -33,10 +42,49 @@ function getStateLabel(state: UiState) {
 }
 
 export function ResultadoPagamentoClient({ paymentId, externalReference, orderId, preferenceId, planId, bookingId }: Props) {
+  const router = useRouter();
   const [state, setState] = useState<UiState>("confirming");
+  const [webhookConfirmed, setWebhookConfirmed] = useState(false);
+  const [resolvedPaymentId, setResolvedPaymentId] = useState<string | null>(paymentId);
 
   useEffect(() => {
     let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let redirectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const startRedirect = () => {
+      if (redirectTimer) return;
+      redirectTimer = setTimeout(() => {
+        router.push("/?payment=success");
+      }, 1800);
+    };
+
+    const handleConfirmed = (nextPaymentId?: string | null) => {
+      setResolvedPaymentId(nextPaymentId ?? paymentId);
+      setWebhookConfirmed(true);
+      setState("approved");
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      startRedirect();
+    };
+
+    const checkStatus = async () => {
+      const params = new URLSearchParams();
+      if (orderId) params.set("orderId", orderId);
+      if (!orderId && externalReference) params.set("externalReference", externalReference);
+      if (!params.toString()) return;
+
+      try {
+        const response = await fetch(`/api/payments/status?${params.toString()}`, { cache: "no-store" });
+        const data = (await response.json()) as PaymentStatusResponse;
+        if (cancelled) return;
+        if (response.ok && data.confirmed) handleConfirmed(data.payment_id);
+      } catch {
+        return;
+      }
+    };
 
     const reconcile = async () => {
       setState("confirming");
@@ -61,7 +109,7 @@ export function ResultadoPagamentoClient({ paymentId, externalReference, orderId
 
         const status = String(data.payment_status ?? "").toLowerCase();
         if (response.ok && (data.confirmed || status === "paid")) {
-          setState("approved");
+          handleConfirmed(paymentId);
           return;
         }
 
@@ -72,6 +120,10 @@ export function ResultadoPagamentoClient({ paymentId, externalReference, orderId
 
         if (response.ok && (status === "pending" || status === "processing" || status === "authorized" || !status)) {
           setState("processing");
+          void checkStatus();
+          pollTimer = setInterval(() => {
+            void checkStatus();
+          }, 4000);
           return;
         }
 
@@ -79,6 +131,10 @@ export function ResultadoPagamentoClient({ paymentId, externalReference, orderId
       } catch {
         if (!cancelled) {
           setState("retrying");
+          void checkStatus();
+          pollTimer = setInterval(() => {
+            void checkStatus();
+          }, 4000);
         }
       }
     };
@@ -86,8 +142,10 @@ export function ResultadoPagamentoClient({ paymentId, externalReference, orderId
     void reconcile();
     return () => {
       cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      if (redirectTimer) clearTimeout(redirectTimer);
     };
-  }, [externalReference, orderId, paymentId, preferenceId]);
+  }, [externalReference, orderId, paymentId, preferenceId, router]);
 
   return (
     <>
@@ -95,10 +153,16 @@ export function ResultadoPagamentoClient({ paymentId, externalReference, orderId
       <section className="section-padding bg-slate-50">
         <div className="container-shell">
           <div className="mx-auto max-w-2xl rounded-[32px] bg-white p-8 shadow-soft">
+            {webhookConfirmed ? (
+              <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                Pagamento bem sucedido. Confirmacao recebida no backend. Redirecionando para a pagina inicial...
+              </div>
+            ) : null}
+
             <h2 className="text-2xl font-bold text-slate-900">{getStateLabel(state)}</h2>
 
             <div className="mt-6 space-y-2 rounded-2xl border border-slate-200 p-4 text-sm text-slate-700">
-              <p><strong>payment_id:</strong> {paymentId ?? "-"}</p>
+              <p><strong>payment_id:</strong> {resolvedPaymentId ?? "-"}</p>
               <p><strong>external_reference:</strong> {externalReference ?? "-"}</p>
               <p><strong>preference_id:</strong> {preferenceId ?? "-"}</p>
               <p><strong>booking_id:</strong> {bookingId ?? "-"}</p>
