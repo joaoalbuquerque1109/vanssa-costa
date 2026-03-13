@@ -69,17 +69,17 @@ export async function PUT(request: Request) {
         nome: configName,
         public_key_mp: publicKey,
         access_token_mp: accessToken,
-        api_pagamento: "mercadopago",
+        api_pagamento: "asaas",
       },
       { onConflict: "id" },
     );
 
     if (upsert.error) {
-      return NextResponse.json({ error: `Falha ao salvar chaves do Mercado Pago: ${upsert.error.message}` }, { status: 500 });
+      return NextResponse.json({ error: `Falha ao salvar credenciais do Asaas: ${upsert.error.message}` }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "Erro inesperado ao salvar chaves do Mercado Pago." }, { status: 500 });
+    return NextResponse.json({ error: "Erro inesperado ao salvar credenciais do Asaas." }, { status: 500 });
   }
 }

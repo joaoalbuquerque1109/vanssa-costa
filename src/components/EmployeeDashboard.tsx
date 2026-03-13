@@ -567,11 +567,11 @@ export function EmployeeDashboard({ role }: { role: Role }) {
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setPaymentSettingsFeedback(data.error ?? "Falha ao salvar chaves do Mercado Pago.");
+        setPaymentSettingsFeedback(data.error ?? "Falha ao salvar credenciais do Asaas.");
         return;
       }
 
-      setPaymentSettingsFeedback("Chaves do Mercado Pago salvas com sucesso.");
+      setPaymentSettingsFeedback("Credenciais do Asaas salvas com sucesso.");
     } catch {
       setPaymentSettingsFeedback("Falha de conexão ao salvar as chaves. Verifique a API e tente novamente.");
     } finally {
@@ -1551,26 +1551,26 @@ export function EmployeeDashboard({ role }: { role: Role }) {
       {role === "administrador" && activeSection === "finance" ? (
         <div id="finance" className="space-y-6 rounded-[32px] bg-white p-4 shadow-soft sm:p-8">
           <details className="rounded-2xl border border-slate-200 p-4">
-            <summary className="cursor-pointer font-semibold text-slate-900">Chaves do Mercado Pago</summary>
+            <summary className="cursor-pointer font-semibold text-slate-900">Credenciais do Asaas</summary>
             <form className="mt-4 grid gap-3" onSubmit={savePaymentSettings}>
-              <label className="text-sm font-medium text-slate-700">Public Key</label>
+              <label className="text-sm font-medium text-slate-700">Token do webhook</label>
               <input
                 className="form-field"
-                placeholder="APP_USR-..."
+                placeholder="Defina o mesmo token configurado no webhook do Asaas"
                 value={paymentSettings.public_key_mp}
                 onChange={(e) => setPaymentSettings((prev) => ({ ...prev, public_key_mp: e.target.value }))}
               />
-              <label className="text-sm font-medium text-slate-700">Access Token</label>
+              <label className="text-sm font-medium text-slate-700">API Key</label>
               <input
                 className="form-field"
                 type="password"
-                placeholder="APP_USR-..."
+                placeholder="$aact_..."
                 value={paymentSettings.access_token_mp}
                 onChange={(e) => setPaymentSettings((prev) => ({ ...prev, access_token_mp: e.target.value }))}
               />
               <div className="flex items-center gap-3">
                 <button type="submit" className="legacy-button" disabled={paymentSettingsSaving}>
-                  {paymentSettingsSaving ? "Salvando..." : "Salvar chaves"}
+                  {paymentSettingsSaving ? "Salvando..." : "Salvar credenciais"}
                 </button>
                 {paymentSettingsFeedback ? <p className="text-sm text-slate-600">{paymentSettingsFeedback}</p> : null}
               </div>

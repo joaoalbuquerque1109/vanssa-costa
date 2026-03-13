@@ -1,23 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import { currency } from "@/lib/utils";
-
-declare global {
-  interface Window {
-    MercadoPago?: new (publicKey: string, options?: { locale?: string }) => {
-      bricks: () => {
-        create: (
-          brickType: "wallet",
-          containerId: string,
-          settings: {
-            initialization: { preferenceId: string };
-          },
-        ) => Promise<{ unmount: () => void }>;
-      };
-    };
-  }
-}
 
 type CustomerPayload = {
   nome: string;
@@ -27,26 +11,11 @@ type CustomerPayload = {
   dataNascimento: string;
 };
 
-function loadScript(src: string) {
-  return new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      if (existing.dataset.loaded === "true") resolve();
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.onload = () => {
-      script.dataset.loaded = "true";
-      resolve();
-    };
-    script.onerror = () => reject(new Error("Falha ao carregar SDK Mercado Pago."));
-    document.body.appendChild(script);
-  });
-}
+type CheckoutResponse = {
+  checkout_url?: string;
+  invoice_url?: string;
+  error?: string;
+};
 
 export function PlanCheckoutCard({
   planId,
@@ -57,10 +26,8 @@ export function PlanCheckoutCard({
   planName: string;
   planPrice: number;
 }) {
-  const [publicKey, setPublicKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preferenceId, setPreferenceId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<CustomerPayload>({
     nome: "",
     email: "",
@@ -68,54 +35,6 @@ export function PlanCheckoutCard({
     cpf: "",
     dataNascimento: "",
   });
-
-  const walletRef = useRef<{ unmount: () => void } | null>(null);
-  const containerId = useMemo(() => "mercado-pago-plan-wallet", []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const response = await fetch("/api/payments/mercadopago/public-key", { cache: "no-store" });
-        const data = (await response.json()) as { public_key?: string };
-        setPublicKey(String(data.public_key ?? "").trim());
-      } catch {
-        setPublicKey(process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY ?? "");
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      walletRef.current?.unmount();
-      walletRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!preferenceId || !publicKey) return;
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        await loadScript("https://sdk.mercadopago.com/js/v2");
-        if (!window.MercadoPago || cancelled) return;
-
-        walletRef.current?.unmount();
-        const mp = new window.MercadoPago(publicKey, { locale: "pt-BR" });
-        const bricks = mp.bricks();
-        walletRef.current = await bricks.create("wallet", containerId, {
-          initialization: { preferenceId },
-        });
-      } catch {
-        if (!cancelled) setError("Nao foi possivel renderizar o componente oficial do Mercado Pago.");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [containerId, preferenceId, publicKey]);
 
   const handleGeneratePayment = async () => {
     setError(null);
@@ -128,7 +47,7 @@ export function PlanCheckoutCard({
 
     setLoading(true);
     try {
-      const response = await fetch("/api/payments/mercadopago/preference", {
+      const response = await fetch("/api/payments/asaas/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -138,15 +57,15 @@ export function PlanCheckoutCard({
         }),
       });
 
-      const data = (await response.json()) as { id?: string; preference_id?: string; error?: string };
-      const resolvedPreferenceId = data.preference_id ?? data.id;
+      const data = (await response.json()) as CheckoutResponse;
+      const checkoutUrl = data.checkout_url ?? data.invoice_url;
 
-      if (!response.ok || !resolvedPreferenceId) {
-        setError(data.error ?? "Nao foi possivel gerar a preferencia de pagamento.");
+      if (!response.ok || !checkoutUrl) {
+        setError(data.error ?? "Nao foi possivel gerar o checkout.");
         return;
       }
 
-      setPreferenceId(resolvedPreferenceId);
+      window.location.href = checkoutUrl;
     } catch {
       setError("Erro inesperado ao gerar pagamento.");
     } finally {
@@ -170,24 +89,15 @@ export function PlanCheckoutCard({
         <input className="form-field md:col-span-2" type="date" value={customer.dataNascimento} onChange={(e) => setCustomer((prev) => ({ ...prev, dataNascimento: e.target.value }))} />
       </div>
 
-      {!publicKey ? (
-        <div className="rounded-3xl border border-amber-300 bg-amber-50 p-6 text-amber-700">
-          Configure <code>NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY</code> no arquivo <code>.env.local</code>.
-        </div>
-      ) : null}
+      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-slate-700">
+        O pagamento sera concluido no checkout hospedado do Asaas. A assinatura so sera confirmada apos o webhook do gateway.
+      </div>
 
-      <button type="button" className="legacy-button" onClick={handleGeneratePayment} disabled={loading || !publicKey}>
-        {loading ? "Gerando preferencia..." : "Continuar para pagamento"}
+      <button type="button" className="legacy-button" onClick={handleGeneratePayment} disabled={loading}>
+        {loading ? "Abrindo checkout..." : "Continuar para pagamento"}
       </button>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-      {preferenceId ? (
-        <div className="space-y-3">
-          <p className="text-sm text-slate-600">Preference ID: {preferenceId}</p>
-          <div id={containerId} />
-        </div>
-      ) : null}
     </div>
   );
 }

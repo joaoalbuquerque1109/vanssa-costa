@@ -37,14 +37,14 @@ export default async function ResultadoPagamentoPage({
     <>
       <PageHero
         title="Retorno do Pagamento"
-        subtitle="Status retornado pelas back_urls. A confirmacao oficial segue por webhook server-side."
+        subtitle="Status retornado pelo checkout. A confirmacao oficial segue por webhook server-side."
       />
       <section className="section-padding bg-slate-50">
         <div className="container-shell">
           <div className="mx-auto max-w-2xl rounded-[32px] bg-white p-8 shadow-soft">
             <h2 className="text-2xl font-bold text-slate-900">Status retornado: {statusLabel(status)}</h2>
             <p className="mt-4 text-slate-600">
-              O status oficial do pagamento e do pedido continua sendo atualizado por webhook do Mercado Pago.
+              O status oficial do pagamento e do pedido continua sendo atualizado por webhook do Asaas.
             </p>
 
             <div className="mt-6 space-y-2 rounded-2xl border border-slate-200 p-4 text-sm text-slate-700">
