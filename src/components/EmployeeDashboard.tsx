@@ -102,6 +102,25 @@ function normalizeDay(value: string) {
     .toLowerCase();
 }
 
+function safeNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function safeDateLabel(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "-";
+  const date = new Date(normalized.includes("T") ? normalized : `${normalized}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("pt-BR");
+}
+
+function safeDateTimeLabel(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "-";
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("pt-BR");
+}
+
 function KebabIcon() {
   return (
     <span className="inline-flex flex-col items-center justify-center gap-1" aria-hidden="true">
@@ -167,6 +186,15 @@ function OverviewSection({
   lowStockProducts: number;
   maxChartValue: number;
 }) {
+  const dashboardRevenueDay = safeNumber(dashboard?.revenue?.day);
+  const dashboardRevenueSelected = safeNumber(dashboard?.revenue?.selected);
+  const dashboardGrowthRate = safeNumber(dashboard?.loggedCustomerGrowth?.growthRate);
+  const dashboardCurrentLogins = safeNumber(dashboard?.loggedCustomerGrowth?.currentLogins);
+  const dashboardPopularServicesCount = dashboard?.popularServices?.length ?? 0;
+  const dashboardDateFrom = dashboard?.dateRange?.from ?? "-";
+  const dashboardDateTo = dashboard?.dateRange?.to ?? "-";
+  const dashboardChart = Array.isArray(dashboard?.chart) ? dashboard.chart : [];
+
   return (
     <div className="space-y-6">
       <aside className={`fixed inset-y-0 left-0 z-40 hidden border-r border-brand-700 bg-brand-900 text-white shadow-soft transition-all duration-300 lg:flex lg:flex-col ${sidebarCollapsed ? "w-24" : "w-72"}`}>
@@ -237,7 +265,7 @@ function OverviewSection({
               <div className="rounded-3xl bg-white p-5 shadow-soft">
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-indigo-100 p-3 text-indigo-600"><Users size={18} /></div>
-                  <div><p className="text-sm text-slate-500">Total de clientes</p><p className="text-2xl font-bold text-slate-900">{dashboard.loggedCustomerGrowth.currentLogins}</p></div>
+                  <div><p className="text-sm text-slate-500">Total de clientes</p><p className="text-2xl font-bold text-slate-900">{dashboardCurrentLogins}</p></div>
                 </div>
               </div>
               <div className="rounded-3xl bg-white p-5 shadow-soft">
@@ -255,13 +283,13 @@ function OverviewSection({
               <div className="rounded-3xl bg-white p-5 shadow-soft">
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-emerald-100 p-3 text-emerald-600"><CircleDollarSign size={18} /></div>
-                  <div><p className="text-sm text-slate-500">Saldo do dia</p><p className="text-2xl font-bold text-slate-900">{currency(dashboard.revenue.day)}</p></div>
+                  <div><p className="text-sm text-slate-500">Saldo do dia</p><p className="text-2xl font-bold text-slate-900">{currency(dashboardRevenueDay)}</p></div>
                 </div>
               </div>
               <div className="rounded-3xl bg-white p-5 shadow-soft">
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-pink-100 p-3 text-pink-600"><BarChart3 size={18} /></div>
-                  <div><p className="text-sm text-slate-500">Recebido no período</p><p className="text-2xl font-bold text-slate-900">{currency(dashboard.revenue.selected)}</p></div>
+                  <div><p className="text-sm text-slate-500">Recebido no período</p><p className="text-2xl font-bold text-slate-900">{currency(dashboardRevenueSelected)}</p></div>
                 </div>
               </div>
             </div>
@@ -270,21 +298,21 @@ function OverviewSection({
               <div className="rounded-3xl bg-white p-6 shadow-soft">
                 <p className="text-sm text-slate-500">Crescimento de logins</p>
                 <div className="mt-2 flex items-center justify-between">
-                  <p className="text-2xl font-bold text-slate-900">{dashboard.loggedCustomerGrowth.growthRate.toFixed(1)}%</p>
-                  <div className="h-16 w-16 rounded-full" style={{ background: `conic-gradient(#22c55e ${Math.max(0, Math.min(100, dashboard.loggedCustomerGrowth.growthRate))}%, #e2e8f0 0)` }} />
+                  <p className="text-2xl font-bold text-slate-900">{dashboardGrowthRate.toFixed(1)}%</p>
+                  <div className="h-16 w-16 rounded-full" style={{ background: `conic-gradient(#22c55e ${Math.max(0, Math.min(100, dashboardGrowthRate))}%, #e2e8f0 0)` }} />
                 </div>
               </div>
               <div className="rounded-3xl bg-white p-6 shadow-soft">
                 <p className="text-sm text-slate-500">Serviços populares</p>
                 <div className="mt-2 flex items-center justify-between">
-                  <p className="text-2xl font-bold text-slate-900">{dashboard.popularServices.length}</p>
-                  <div className="h-16 w-16 rounded-full" style={{ background: `conic-gradient(#3b82f6 ${Math.min(100, dashboard.popularServices.length * 20)}%, #e2e8f0 0)` }} />
+                  <p className="text-2xl font-bold text-slate-900">{dashboardPopularServicesCount}</p>
+                  <div className="h-16 w-16 rounded-full" style={{ background: `conic-gradient(#3b82f6 ${Math.min(100, dashboardPopularServicesCount * 20)}%, #e2e8f0 0)` }} />
                 </div>
               </div>
               <div className="rounded-3xl bg-white p-6 shadow-soft">
                 <p className="text-sm text-slate-500">Período</p>
                 <div className="mt-2 flex items-center justify-between">
-                  <p className="text-sm font-bold text-slate-900">{dashboard.dateRange.from} até {dashboard.dateRange.to}</p>
+                  <p className="text-sm font-bold text-slate-900">{dashboardDateFrom} até {dashboardDateTo}</p>
                   <div className="rounded-full bg-slate-100 p-3 text-slate-600"><Layers size={18} /></div>
                 </div>
               </div>
@@ -293,10 +321,10 @@ function OverviewSection({
             <div className="rounded-[32px] bg-white p-8 shadow-soft">
               <h3 className="text-xl font-bold text-slate-900">Demonstrativo financeiro</h3>
               <div className="mt-6 space-y-3">
-                {dashboard.chart.map((point) => (
+                {dashboardChart.map((point) => (
                   <div key={point.label} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs text-slate-500"><span>{point.label}</span><span>{currency(point.total)}</span></div>
-                    <div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-500" style={{ width: `${(point.total / maxChartValue) * 100}%` }} /></div>
+                    <div className="flex items-center justify-between text-xs text-slate-500"><span>{point.label}</span><span>{currency(safeNumber(point.total))}</span></div>
+                    <div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-500" style={{ width: `${(safeNumber(point.total) / maxChartValue) * 100}%` }} /></div>
                   </div>
                 ))}
               </div>
@@ -355,6 +383,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
   const [employeeDeleteSavingId, setEmployeeDeleteSavingId] = useState<number | null>(null);
   const [employeeCreateSaving, setEmployeeCreateSaving] = useState(false);
   const [employeeCreateFeedback, setEmployeeCreateFeedback] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState({
     nome: "",
     email: "",
@@ -374,6 +403,14 @@ export function EmployeeDashboard({ role }: { role: Role }) {
   const maxChartValue = useMemo(() => Math.max(1, ...(dashboard?.chart.map((item) => item.total) ?? [0])), [dashboard]);
   const serviceNameById = useMemo(() => new Map(services.map((service) => [service.id, service.nome])), [services]);
   const categoryNameById = useMemo(() => new Map(serviceCategories.map((category) => [category.id, category.nome])), [serviceCategories]);
+  const dashboardRevenueDay = safeNumber(dashboard?.revenue?.day);
+  const dashboardRevenueSelected = safeNumber(dashboard?.revenue?.selected);
+  const dashboardGrowthRate = safeNumber(dashboard?.loggedCustomerGrowth?.growthRate);
+  const dashboardCurrentLogins = safeNumber(dashboard?.loggedCustomerGrowth?.currentLogins);
+  const dashboardPopularServicesCount = dashboard?.popularServices?.length ?? 0;
+  const dashboardDateFrom = dashboard?.dateRange?.from ?? "-";
+  const dashboardDateTo = dashboard?.dateRange?.to ?? "-";
+  const dashboardChart = Array.isArray(dashboard?.chart) ? dashboard.chart : [];
   const todayIso = new Date().toISOString().slice(0, 10);
   const todayAppointments = useMemo(() => appointments.filter((appointment) => appointment.date === todayIso).length, [appointments, todayIso]);
   const lowStockProducts = useMemo(() => products.filter((product) => Number(product.estoque ?? 0) <= 5).length, [products]);
@@ -451,96 +488,108 @@ export function EmployeeDashboard({ role }: { role: Role }) {
   const agendaGridColumns = `80px repeat(${Math.max(1, selectedAgendaProfessionals.length)}, minmax(0, 1fr))`;
 
   const loadDashboard = async () => {
-    const params = new URLSearchParams({ range });
-    if (range === "custom") {
-      if (customFrom) params.set("from", customFrom);
-      if (customTo) params.set("to", customTo);
+    try {
+      const params = new URLSearchParams({ range });
+      if (range === "custom") {
+        if (customFrom) params.set("from", customFrom);
+        if (customTo) params.set("to", customTo);
+      }
+      const response = await fetch(`/api/portal/dashboard?${params.toString()}`, { cache: "no-store" });
+      if (response.ok) {
+        setDashboard((await response.json()) as DashboardData);
+        setLoadError(null);
+      }
+    } catch {
+      setLoadError("Falha ao carregar o dashboard.");
     }
-    const response = await fetch(`/api/portal/dashboard?${params.toString()}`, { cache: "no-store" });
-    if (response.ok) setDashboard((await response.json()) as DashboardData);
   };
 
   const loadCatalog = async () => {
-    const [servicesRes, categoriesRes, productsRes, myScheduleRes, appointmentsRes, profileRes, professionalsRes, blockedDaysRes] = await Promise.all([
-      fetch("/api/portal/services", { cache: "no-store" }),
-      fetch("/api/portal/service-categories", { cache: "no-store" }),
-      fetch("/api/portal/products", { cache: "no-store" }),
-      fetch("/api/portal/my-schedule", { cache: "no-store" }),
-      fetch("/api/portal/appointments", { cache: "no-store" }),
-      fetch("/api/portal/my-profile", { cache: "no-store" }),
-      fetch("/api/portal/professionals", { cache: "no-store" }),
-      fetch("/api/portal/blocked-days", { cache: "no-store" }),
-    ]);
-
-    if (servicesRes.ok) setServices(((await servicesRes.json()) as { services: Service[] }).services ?? []);
-    if (categoriesRes.ok) setServiceCategories(((await categoriesRes.json()) as { categories: ServiceCategory[] }).categories ?? []);
-    if (productsRes.ok) setProducts(((await productsRes.json()) as { products: Product[] }).products ?? []);
-
-    if (myScheduleRes.ok) {
-      const days = ((await myScheduleRes.json()) as { days: DayRow[] }).days ?? [];
-      const byDay = new Map(days.map((item) => [normalizeDay(item.dia), item]));
-      const merged = DEFAULT_WORK_DAYS.map((day) => {
-        const existing = byDay.get(normalizeDay(day.dia));
-        return existing
-          ? {
-              dia: day.dia,
-              inicio: existing.inicio ?? day.inicio,
-              final: existing.final ?? day.final,
-              inicio_almoco: existing.inicio_almoco ?? day.inicio_almoco,
-              final_almoco: existing.final_almoco ?? day.final_almoco,
-            }
-          : { ...day };
-      });
-      setMyDays(merged);
-    }
-
-    if (appointmentsRes.ok) {
-      setAppointments(((await appointmentsRes.json()) as { appointments: Appointment[] }).appointments ?? []);
-    }
-
-    if (professionalsRes.ok) {
-      const data = (await professionalsRes.json()) as { professionals: ProfessionalItem[] };
-      const list = data.professionals ?? [];
-      setProfessionals(list);
-      if (!agendaEmployeeId && list.length) {
-        setAgendaEmployeeId(Number(list[0].id));
-      }
-    }
-
-    if (blockedDaysRes.ok) {
-      const data = (await blockedDaysRes.json()) as { blockedDays: BlockedDayItem[] };
-      setBlockedDays(data.blockedDays ?? []);
-    }
-
-    if (profileRes.ok) {
-      const data = (await profileRes.json()) as { profile: Profile };
-      setProfile(data.profile);
-    }
-
-    if (role === "administrador") {
-      const [employeesRes, customersRes, plansRes, financeRes] = await Promise.all([
-        fetch("/api/portal/admin/employees", { cache: "no-store" }),
-        fetch("/api/portal/customers", { cache: "no-store" }),
-        fetch("/api/portal/plans", { cache: "no-store" }),
-        fetch("/api/portal/finance", { cache: "no-store" }),
+    try {
+      const [servicesRes, categoriesRes, productsRes, myScheduleRes, appointmentsRes, profileRes, professionalsRes, blockedDaysRes] = await Promise.all([
+        fetch("/api/portal/services", { cache: "no-store" }),
+        fetch("/api/portal/service-categories", { cache: "no-store" }),
+        fetch("/api/portal/products", { cache: "no-store" }),
+        fetch("/api/portal/my-schedule", { cache: "no-store" }),
+        fetch("/api/portal/appointments", { cache: "no-store" }),
+        fetch("/api/portal/my-profile", { cache: "no-store" }),
+        fetch("/api/portal/professionals", { cache: "no-store" }),
+        fetch("/api/portal/blocked-days", { cache: "no-store" }),
       ]);
-      if (employeesRes.ok) {
-        const data = (await employeesRes.json()) as { employees: Employee[]; links: Array<{ funcionario: number; servico: number }> };
-        setEmployees(data.employees ?? []);
-        setEmployeeLinks(data.links ?? []);
+
+      if (servicesRes.ok) setServices(((await servicesRes.json()) as { services: Service[] }).services ?? []);
+      if (categoriesRes.ok) setServiceCategories(((await categoriesRes.json()) as { categories: ServiceCategory[] }).categories ?? []);
+      if (productsRes.ok) setProducts(((await productsRes.json()) as { products: Product[] }).products ?? []);
+
+      if (myScheduleRes.ok) {
+        const days = ((await myScheduleRes.json()) as { days: DayRow[] }).days ?? [];
+        const byDay = new Map(days.map((item) => [normalizeDay(item.dia), item]));
+        const merged = DEFAULT_WORK_DAYS.map((day) => {
+          const existing = byDay.get(normalizeDay(day.dia));
+          return existing
+            ? {
+                dia: day.dia,
+                inicio: existing.inicio ?? day.inicio,
+                final: existing.final ?? day.final,
+                inicio_almoco: existing.inicio_almoco ?? day.inicio_almoco,
+                final_almoco: existing.final_almoco ?? day.final_almoco,
+              }
+            : { ...day };
+        });
+        setMyDays(merged);
       }
-      if (customersRes.ok) {
-        const data = (await customersRes.json()) as { customers: Customer[] };
-        setCustomers(data.customers ?? []);
+
+      if (appointmentsRes.ok) {
+        setAppointments(((await appointmentsRes.json()) as { appointments: Appointment[] }).appointments ?? []);
       }
-      if (plansRes.ok) {
-        const data = (await plansRes.json()) as { rows: PlanPaymentRow[] };
-        setPlanRows(data.rows ?? []);
+
+      if (professionalsRes.ok) {
+        const data = (await professionalsRes.json()) as { professionals: ProfessionalItem[] };
+        const list = data.professionals ?? [];
+        setProfessionals(list);
+        if (!agendaEmployeeId && list.length) {
+          setAgendaEmployeeId(Number(list[0].id));
+        }
       }
-      if (financeRes.ok) {
-        const data = (await financeRes.json()) as { rows: FinancePaymentRow[] };
-        setFinanceRows(data.rows ?? []);
+
+      if (blockedDaysRes.ok) {
+        const data = (await blockedDaysRes.json()) as { blockedDays: BlockedDayItem[] };
+        setBlockedDays(data.blockedDays ?? []);
       }
+
+      if (profileRes.ok) {
+        const data = (await profileRes.json()) as { profile: Profile };
+        if (data.profile) setProfile(data.profile);
+      }
+
+      if (role === "administrador") {
+        const [employeesRes, customersRes, plansRes, financeRes] = await Promise.all([
+          fetch("/api/portal/admin/employees", { cache: "no-store" }),
+          fetch("/api/portal/customers", { cache: "no-store" }),
+          fetch("/api/portal/plans", { cache: "no-store" }),
+          fetch("/api/portal/finance", { cache: "no-store" }),
+        ]);
+        if (employeesRes.ok) {
+          const data = (await employeesRes.json()) as { employees: Employee[]; links: Array<{ funcionario: number; servico: number }> };
+          setEmployees(data.employees ?? []);
+          setEmployeeLinks(data.links ?? []);
+        }
+        if (customersRes.ok) {
+          const data = (await customersRes.json()) as { customers: Customer[] };
+          setCustomers(data.customers ?? []);
+        }
+        if (plansRes.ok) {
+          const data = (await plansRes.json()) as { rows: PlanPaymentRow[] };
+          setPlanRows(data.rows ?? []);
+        }
+        if (financeRes.ok) {
+          const data = (await financeRes.json()) as { rows: FinancePaymentRow[] };
+          setFinanceRows(data.rows ?? []);
+        }
+      }
+      setLoadError(null);
+    } catch {
+      setLoadError("Falha ao carregar dados do portal.");
     }
   };
 
@@ -959,6 +1008,11 @@ export function EmployeeDashboard({ role }: { role: Role }) {
         sidebarCollapsed ? "lg:ml-24 lg:w-[calc(100%-6rem)]" : "lg:ml-72 lg:w-[calc(100%-18rem)]"
       }`}
     >
+      {loadError ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {loadError}
+        </div>
+      ) : null}
       <div className="flex items-center justify-between rounded-2xl bg-brand-900 px-4 py-3 text-white shadow-soft">
         <h2 className="text-lg font-bold md:text-xl">{currentSectionTitle}</h2>
         <div className="flex items-center gap-2">
@@ -1373,7 +1427,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
             <tbody>
               {filteredAppointments.map((item) => (
                 <tr key={item.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{new Date(`${item.date}T00:00:00`).toLocaleDateString("pt-BR")}</td>
+                  <td className="px-3 py-2">{safeDateLabel(item.date)}</td>
                   <td className="px-3 py-2">{item.time}</td>
                   <td className="px-3 py-2">{item.clientName}</td>
                   <td className="px-3 py-2">{item.professionalName}</td>
@@ -1496,7 +1550,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
                     <td className="px-3 py-2">{customer.telefone || "-"}</td>
                     <td className="px-3 py-2">{customer.email || "-"}</td>
                     <td className="px-3 py-2">
-                      {customer.data_nasc ? new Date(`${customer.data_nasc}T00:00:00`).toLocaleDateString("pt-BR") : "-"}
+                      {safeDateLabel(customer.data_nasc)}
                     </td>
                   </tr>
                 ))}
@@ -1536,7 +1590,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
                   <tr key={row.id} className="border-t border-slate-100">
                     <td className="px-3 py-2">{row.cliente_nome}</td>
                     <td className="px-3 py-2">{row.cliente_cpf}</td>
-                    <td className="px-3 py-2">{new Date(`${row.data_reserva}T00:00:00`).toLocaleDateString("pt-BR")}</td>
+                    <td className="px-3 py-2">{safeDateLabel(row.data_reserva)}</td>
                     <td className="px-3 py-2">{row.servico_nome}</td>
                     <td className="px-3 py-2">{currency(Number(row.valor ?? 0))}</td>
                     <td className="px-3 py-2">{row.tipo_pagamento ?? "-"}</td>
@@ -1581,7 +1635,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
                     <td className="px-3 py-2">{row.cliente_nome}</td>
                     <td className="px-3 py-2">{row.cliente_cpf}</td>
                     <td className="px-3 py-2">{row.servico_nome}</td>
-                    <td className="px-3 py-2">{new Date(row.created_at).toLocaleString("pt-BR")}</td>
+                    <td className="px-3 py-2">{safeDateTimeLabel(row.created_at)}</td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.sucesso ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                         {row.sucesso ? "Pago" : "Nao pago"}
