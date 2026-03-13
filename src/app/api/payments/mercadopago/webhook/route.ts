@@ -160,6 +160,8 @@ export async function POST(request: NextRequest) {
     (payload.id as string | number | undefined)?.toString();
   const paymentIdFromQuery = request.nextUrl.searchParams.get("data.id") ?? request.nextUrl.searchParams.get("id");
   const paymentId = paymentIdFromPayload ?? paymentIdFromQuery ?? null;
+  const liveMode = payload.live_mode;
+  const isTestEvent = liveMode === false || String(liveMode ?? "").toLowerCase() === "false";
   const requestId = request.headers.get("x-request-id");
   const signatureHeader = request.headers.get("x-signature");
 
@@ -222,6 +224,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    if (isTestEvent) {
+      if (eventId) {
+        await supabase
+          .from("payment_webhook_events")
+          .update({
+            processing_status: "processed",
+            processed_at: new Date().toISOString(),
+            error_message: null,
+          })
+          .eq("id", eventId);
+      }
+
+      return NextResponse.json({ ok: true, ignored: "test_event" });
+    }
+
     if (!paymentId || (type !== "payment" && type !== "topic_payment")) {
       if (eventId) {
         await supabase
