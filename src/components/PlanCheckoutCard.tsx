@@ -12,8 +12,10 @@ type CustomerPayload = {
 };
 
 type CheckoutResponse = {
+  init_point?: string;
+  sandbox_init_point?: string;
   checkout_url?: string;
-  invoice_url?: string;
+  preference_id?: string;
   error?: string;
 };
 
@@ -47,18 +49,19 @@ export function PlanCheckoutCard({
 
     setLoading(true);
     try {
-      const response = await fetch("/api/payments/asaas/checkout", {
+      const response = await fetch("/api/payments/mercadopago/preference", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           planId,
           paymentMethod: "pix_card",
           customer,
+          payerEmail: customer.email,
         }),
       });
 
       const data = (await response.json()) as CheckoutResponse;
-      const checkoutUrl = data.checkout_url ?? data.invoice_url;
+      const checkoutUrl = data.init_point ?? data.sandbox_init_point ?? data.checkout_url;
 
       if (!response.ok || !checkoutUrl) {
         setError(data.error ?? "Nao foi possivel gerar o checkout.");
@@ -90,7 +93,7 @@ export function PlanCheckoutCard({
       </div>
 
       <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-slate-700">
-        O pagamento sera concluido no checkout hospedado do Asaas. A assinatura so sera confirmada apos o webhook do gateway.
+        O pagamento sera concluido no Checkout Pro do Mercado Pago. A assinatura so sera confirmada apos a validacao server-side.
       </div>
 
       <button type="button" className="legacy-button" onClick={handleGeneratePayment} disabled={loading}>

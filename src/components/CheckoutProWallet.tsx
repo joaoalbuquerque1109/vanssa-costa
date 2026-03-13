@@ -4,8 +4,9 @@ import { useState } from "react";
 
 type CheckoutResponse = {
   order_id: string;
+  init_point?: string;
+  sandbox_init_point?: string;
   checkout_url?: string;
-  invoice_url?: string;
   error?: string;
 };
 
@@ -37,7 +38,7 @@ export function CheckoutProWallet({
         return;
       }
 
-      const response = await fetch("/api/payments/asaas/checkout", {
+      const response = await fetch("/api/payments/mercadopago/preference", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -57,7 +58,7 @@ export function CheckoutProWallet({
       });
 
       const data = (await response.json()) as CheckoutResponse;
-      const checkoutUrl = data.checkout_url ?? data.invoice_url;
+      const checkoutUrl = data.init_point ?? data.sandbox_init_point ?? data.checkout_url;
 
       if (!response.ok || !checkoutUrl) {
         setError(data.error ?? "Nao foi possivel gerar o checkout.");
@@ -80,7 +81,7 @@ export function CheckoutProWallet({
       </div>
 
       <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-slate-700">
-        O pagamento sera aberto no checkout hospedado do Asaas. A confirmacao oficial continua acontecendo por webhook server-side.
+        O pagamento sera aberto no Checkout Pro do Mercado Pago. A confirmacao oficial continua acontecendo por webhook server-side.
       </div>
 
       <button type="button" onClick={createCheckout} className="legacy-button" disabled={loading}>

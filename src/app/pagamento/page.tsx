@@ -78,7 +78,7 @@ export default async function PagamentoPage({
     <>
       <PageHero
         title="Pagamento"
-        subtitle="Checkout hospedado do Asaas. A confirmacao oficial acontece via webhook server-side."
+        subtitle="Checkout Pro do Mercado Pago. A confirmacao oficial acontece via webhook server-side."
       />
       <section className="section-padding bg-slate-50">
         <div className="container-shell max-w-4xl">

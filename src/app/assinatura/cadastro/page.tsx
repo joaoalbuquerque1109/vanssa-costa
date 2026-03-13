@@ -35,7 +35,7 @@ export default async function AssinaturaCadastroPage({
     <>
       <PageHero
         title="Cadastro e Pagamento"
-        subtitle="Preencha seus dados e conclua o pagamento do plano selecionado."
+        subtitle="Preencha seus dados e conclua o pagamento do plano selecionado no Checkout Pro do Mercado Pago."
       />
       <section className="section-padding bg-slate-50">
         <div className="container-shell max-w-4xl">
