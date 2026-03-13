@@ -1,29 +1,13 @@
-import Link from "next/link";
-import { PageHero } from "@/components/PageHero";
+import { ResultadoPagamentoClient } from "./ResultadoPagamentoClient";
 
 type ResultSearchParams = {
-  status?: string;
   payment_id?: string;
   external_reference?: string;
-  merchant_order_id?: string;
   preference_id?: string;
   booking_id?: string;
-  order_id?: string;
   plan_id?: string;
+  order_id?: string;
 };
-
-function normalizeStatus(value?: string) {
-  const status = String(value ?? "").toLowerCase();
-  if (status === "approved" || status === "success") return "approved";
-  if (status === "rejected" || status === "failure") return "rejected";
-  return "pending";
-}
-
-function statusLabel(status: string) {
-  if (status === "approved") return "Aprovado";
-  if (status === "rejected") return "Rejeitado";
-  return "Pendente";
-}
 
 export default async function ResultadoPagamentoPage({
   searchParams,
@@ -31,9 +15,9 @@ export default async function ResultadoPagamentoPage({
   searchParams: Promise<ResultSearchParams>;
 }) {
   const params = await searchParams;
-  const status = normalizeStatus(params.status);
 
   return (
+<<<<<<< HEAD
     <>
       <PageHero
         title="Retorno do Pagamento"
@@ -64,5 +48,15 @@ export default async function ResultadoPagamentoPage({
         </div>
       </section>
     </>
+=======
+    <ResultadoPagamentoClient
+      paymentId={params.payment_id ?? null}
+      externalReference={params.external_reference ?? null}
+      preferenceId={params.preference_id ?? null}
+      bookingId={params.booking_id ?? null}
+      planId={params.plan_id ?? null}
+      orderId={params.order_id ?? null}
+    />
+>>>>>>> b0f0fc1f875ccc73cc93736b7d52cd83146afd0e
   );
 }

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/payments/reconcile/pending",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

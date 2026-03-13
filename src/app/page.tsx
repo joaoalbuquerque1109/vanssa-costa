@@ -34,7 +34,12 @@ const HOME_TESTIMONIALS: TestimonialRow[] = [
   { id: 3, nome: "Marcos Silva", texto: "Minha barbearia de confianca.", foto: "14-06-2022-19-11-32-30-05-2022-13-19-34-08-03-2022-22-21-20-02-03-2022-09-59-04-Arthur.jpg" },
 ];
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ payment?: string }>;
+}) {
+  const params = searchParams ? await searchParams : undefined;
   const supabase = await createSupabaseServerClient();
   let services: ServiceRow[] = [];
   let categories: CategoryRow[] = [];
@@ -57,6 +62,13 @@ export default async function HomePage() {
 
   return (
     <>
+      {params?.payment === "success" ? (
+        <section className="bg-emerald-50 px-4 py-4 text-emerald-800">
+          <div className="container-shell rounded-2xl border border-emerald-200 bg-emerald-100 px-4 py-3 text-sm font-semibold">
+            Pagamento bem sucedido.
+          </div>
+        </section>
+      ) : null}
       <HeroSection banners={HOME_BANNERS} config={HOME_CONFIG} />
       <ServicesGrid services={services} categories={categories} compact />
       <AboutSection config={HOME_CONFIG} />

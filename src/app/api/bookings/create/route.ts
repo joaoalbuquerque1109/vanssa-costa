@@ -208,7 +208,7 @@ export async function POST(request: Request) {
       servico: serviceId,
       valor: Number(serviceRes.data.valor || 0),
       phone: telefone,
-      status: "pending",
+      status: "pending_payment",
       expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     })
     .select("id,status")
