@@ -443,13 +443,15 @@ export async function POST(request: Request) {
   }
 
   const resultBase = "/pagamento/resultado";
+  const pendingReturnBase = "/api/mercado-pago/pending";
   const queryPlan = resolvedPlanId ? `&plan_id=${resolvedPlanId}` : "";
   const queryBooking = resolvedBookingId ? `&booking_id=${resolvedBookingId}` : "";
   const queryExternalReference = `&external_reference=${encodeURIComponent(externalReference)}`;
+  const queryOrder = `order_id=${orderInsert.data.id}`;
   const backUrls = {
     success: `${appBaseUrl}${resultBase}?status=approved${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}${queryExternalReference}`,
     failure: `${appBaseUrl}${resultBase}?status=rejected${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}${queryExternalReference}`,
-    pending: `${appBaseUrl}${resultBase}?status=pending${queryBooking}${queryPlan}&order_id=${orderInsert.data.id}${queryExternalReference}`,
+    pending: `${appBaseUrl}${pendingReturnBase}?${queryOrder}${queryBooking}${queryPlan}${queryExternalReference}`,
   };
   const canUseAutoReturn = backUrls.success.startsWith("https://");
 
