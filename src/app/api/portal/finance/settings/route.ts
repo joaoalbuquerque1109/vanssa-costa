@@ -11,7 +11,7 @@ export async function GET() {
     return NextResponse.json({
       settings: {},
       managed_externally: true,
-      message: "As credenciais de pagamento sao gerenciadas por variaveis de ambiente no deploy.",
+      message: "As credenciais de pagamento são gerenciadas pelo desenvolvedor.",
     });
   } catch {
     return NextResponse.json({ error: "Erro inesperado ao carregar configuracoes de pagamento." }, { status: 500 });
@@ -22,16 +22,16 @@ export async function PUT() {
   try {
     const session = await getPortalSession();
     if (!session || session.profile.role !== "administrador") {
-      return NextResponse.json({ error: "Apenas administradores podem alterar as configuracoes." }, { status: 403 });
+      return NextResponse.json({ error: "Apenas administradores podem alterar as configurações." }, { status: 403 });
     }
 
     return NextResponse.json(
       {
-        error: "As credenciais de pagamento sao gerenciadas por variaveis de ambiente no deploy.",
+        error: "As credenciais de pagamento são gerenciadas pelo desenvolvedor.",
       },
       { status: 405 },
     );
   } catch {
-    return NextResponse.json({ error: "Erro inesperado ao salvar configuracoes de pagamento." }, { status: 500 });
+    return NextResponse.json({ error: "Erro inesperado ao salvar configurações de pagamento." }, { status: 500 });
   }
 }

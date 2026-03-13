@@ -6,9 +6,9 @@ import type { ConfigRow, ProductRow } from "@/types/site";
 const PRODUCTS_PAGE_CONFIG: ConfigRow = {
   id: 1,
   nome: "Vanessa Costa",
-  email: "contato@vanessacosta.com.br",
-  telefone_whatsapp: "(31) 99534-8118",
-  endereco: "Rua X Numero 150 - Centro - Belo Horizonte/MG",
+  email: "vancostaracco@hotmail.com",
+  telefone_whatsapp: "(83) 98751-6023",
+  endereco: "Av. Gen. Edson Ramalho, 275 - Manaíra - João Pessoa/PB",
   logo: "logo.png",
   icone_site: "favicon.png",
   texto_rodape: "Atendimento premium com foco em experiencia, qualidade e pontualidade.",
@@ -26,7 +26,7 @@ export default async function ProdutosPage() {
 
   return (
     <>
-      <PageHero title="Nossos Produtos" subtitle="Catalogo carregado diretamente do banco de dados." />
+      <PageHero title="Nossos Produtos" subtitle="Cátalogo dos melhores produtos da região." />
       <ProductsGrid products={products} config={PRODUCTS_PAGE_CONFIG} />
     </>
   );

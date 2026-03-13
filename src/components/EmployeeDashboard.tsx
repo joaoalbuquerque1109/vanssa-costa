@@ -373,6 +373,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
   const [appointmentCustomerFilter, setAppointmentCustomerFilter] = useState<number>(0);
   const [financeRows, setFinanceRows] = useState<FinancePaymentRow[]>([]);
   const [planRows, setPlanRows] = useState<PlanPaymentRow[]>([]);
+  const [financeRefreshing, setFinanceRefreshing] = useState(false);
 
   const [showCreateEmployeeModal, setShowCreateEmployeeModal] = useState(false);
   const [showUpdateEmployeeModal, setShowUpdateEmployeeModal] = useState(false);
@@ -590,6 +591,34 @@ export function EmployeeDashboard({ role }: { role: Role }) {
       setLoadError(null);
     } catch {
       setLoadError("Falha ao carregar dados do portal.");
+    }
+  };
+
+  const refreshFinance = async () => {
+    setFinanceRefreshing(true);
+    setLoadError(null);
+
+    try {
+      const [plansRes, financeRes] = await Promise.all([
+        fetch("/api/portal/plans", { cache: "no-store" }),
+        fetch("/api/portal/finance", { cache: "no-store" }),
+      ]);
+
+      if (plansRes.ok) {
+        const data = (await plansRes.json()) as { rows: PlanPaymentRow[] };
+        setPlanRows(data.rows ?? []);
+      }
+
+      if (financeRes.ok) {
+        const data = (await financeRes.json()) as { rows: FinancePaymentRow[] };
+        setFinanceRows(data.rows ?? []);
+      } else {
+        setLoadError("Falha ao atualizar o financeiro.");
+      }
+    } catch {
+      setLoadError("Falha ao atualizar o financeiro.");
+    } finally {
+      setFinanceRefreshing(false);
     }
   };
 
@@ -1569,6 +1598,12 @@ export function EmployeeDashboard({ role }: { role: Role }) {
 
       {role === "administrador" && activeSection === "finance" ? (
         <div id="finance" className="space-y-6 rounded-[32px] bg-white p-4 shadow-soft sm:p-8">
+          <div className="flex items-center justify-between gap-4">
+            <h3 className="text-xl font-bold text-slate-900">Financeiro</h3>
+            <button type="button" className="legacy-button" onClick={() => void refreshFinance()} disabled={financeRefreshing}>
+              {financeRefreshing ? "Atualizando..." : "Atualizar"}
+            </button>
+          </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             As credenciais de pagamento sao gerenciadas por variaveis de ambiente no deploy.
           </div>

@@ -2,6 +2,8 @@
 import type { ConfigRow } from "@/types/site";
 
 export function ContactSection({ config }: { config: ConfigRow }) {
+  const mapSrc = config.mapa ? config.mapa.match(/src="([^"]+)"/)?.[1] ?? config.mapa : "";
+
   return (
     <section className="section-padding bg-slate-50">
       <div className="container-shell">
@@ -16,9 +18,9 @@ export function ContactSection({ config }: { config: ConfigRow }) {
           </form>
 
           <div className="card-shell overflow-hidden p-0">
-            {config.mapa ? (
+            {mapSrc ? (
               <iframe
-                src={config.mapa.match(/src="([^"]+)"/)?.[1] ?? ""}
+                src={mapSrc}
                 className="min-h-[420px] w-full border-0"
                 loading="lazy"
                 title="Mapa"

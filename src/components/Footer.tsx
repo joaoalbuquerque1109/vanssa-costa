@@ -28,9 +28,6 @@ export function Footer({ config }: { config: ConfigRow }) {
             <a href={config.instagram ?? "#"} target="_blank" className="block hover:text-white">
               Instagram
             </a>
-            <a href="/acesso-cliente" className="block hover:text-white">
-              Login portal
-            </a>
             <a href="/portal" className="block hover:text-white">
               Área autenticada
             </a>

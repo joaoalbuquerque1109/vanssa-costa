@@ -10,17 +10,17 @@ import type { BannerRow, CategoryRow, ConfigRow, ProductRow, ServiceRow, Testimo
 const HOME_CONFIG: ConfigRow = {
   id: 1,
   nome: "Vanessa Costa",
-  email: "contato@vanessacosta.com.br",
-  telefone_whatsapp: "(31) 99534-8118",
-  endereco: "Rua X Numero 150 - Centro - Belo Horizonte/MG",
+  email: "vancostaracco@hotmail.com",
+  telefone_whatsapp: "(83) 98751-6023",
+  endereco: "Av. Gen. Edson Ramalho, 275 - Manaíra - João Pessoa/PB",
   logo: "logo.png",
   icone_site: "favicon.png",
   texto_rodape: "Atendimento premium com foco em experiencia, qualidade e pontualidade.",
   img_banner_index: "banner_site.jpg",
-  texto_sobre: "Somos um espaco de beleza com atendimento humanizado e profissionais especializados.",
+  texto_sobre: "Na Vanessa Costa Curly Beauty, acreditamos que cada cabelo carrega uma história, uma identidade e uma forma única de expressão. Somos um espaço especializado no cuidado de cabelos cacheados e ondulados, criado para oferecer atendimento personalizado, técnicas atualizadas e resultados que respeitam a natureza dos fios. Mais do que transformar a aparência, nosso propósito é fortalecer a autoestima e proporcionar uma experiência de acolhimento e confiança. Trabalhamos com tratamentos específicos, cortes estratégicos, finalizações profissionais e orientações completas para que cada cliente aprenda a cuidar e valorizar seus cachos no dia a dia. Localizado em João Pessoa, nosso salão é referência para quem busca beleza natural, saúde capilar e resultados duradouros. Aqui, cada atendimento é pensado com carinho, profissionalismo e dedicação para que você se sinta segura, bonita e plenamente conectada com a sua própria essência.",
   imagem_sobre: "sobre-nos-vanessa.png",
-  instagram: "https://www.instagram.com/portal_hugo_cursos/",
-  mapa: "",
+  instagram: "https://www.instagram.com/vanessacostacachos/",
+  mapa: "https://www.google.com/maps?q=Av.%20Gen.%20Edson%20Ramalho%2C%20275%20-%20Mana%C3%ADra%20-%20Jo%C3%A3o%20Pessoa%2FPB&z=17&output=embed",
 };
 
 const HOME_BANNERS: BannerRow[] = [

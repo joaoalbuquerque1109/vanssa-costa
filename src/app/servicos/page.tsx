@@ -22,7 +22,7 @@ export default async function ServicosPage() {
 
   return (
     <>
-      <PageHero title="Nossos Servicos" subtitle="Catalogo carregado diretamente do banco de dados." />
+      <PageHero title="Nossos Servicos" subtitle="átalogo dos melhores serviços da região." />
       <ServicesGrid services={services} categories={categories} />
     </>
   );
