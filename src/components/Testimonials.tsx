@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import Image from "next/image";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import type { TestimonialRow } from "@/types/site";
 
 export function Testimonials({ testimonials }: { testimonials: TestimonialRow[] }) {
@@ -44,23 +44,24 @@ export function Testimonials({ testimonials }: { testimonials: TestimonialRow[] 
           >
             {testimonials.map((testimonial) => (
               <article key={testimonial.id} className="card-shell min-w-[250px] snap-start p-6 sm:min-w-[300px] lg:min-w-[360px]">
-                <div className="flex items-center gap-4">
-                  <div className="relative h-14 w-14 overflow-hidden rounded-full">
-                    <Image
-                      src={`/sistema/painel/img/comentarios/${testimonial.foto}`}
-                      alt={testimonial.nome}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-slate-900">{testimonial.nome}</h3>
+                <div className="flex items-start justify-between gap-4">
+                  <h3 className="font-semibold text-slate-900">{testimonial.nome}</h3>
+                  <div className="flex items-center gap-1 text-amber-500">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <Star key={`${testimonial.id}-${index}`} size={16} className={index < Number(testimonial.nota ?? 5) ? "fill-current" : ""} />
+                    ))}
                   </div>
                 </div>
                 <p className="mt-4 text-sm leading-7 text-slate-600">{testimonial.texto}</p>
               </article>
             ))}
           </div>
+        </div>
+
+        <div className="mt-8 flex justify-center">
+          <Link href="/feedback" className="legacy-button">
+            Deixar meu feedback
+          </Link>
         </div>
       </div>
     </section>

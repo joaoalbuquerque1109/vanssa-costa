@@ -28,12 +28,6 @@ const HOME_BANNERS: BannerRow[] = [
   { id: 2, titulo: "Faca sua Barba", descricao: "Acabamento impecavel com tecnicas modernas." },
 ];
 
-const HOME_TESTIMONIALS: TestimonialRow[] = [
-  { id: 1, nome: "Hugo Vasconcelos", texto: "Excelente atendimento e ambiente impecavel.", foto: "14-06-2022-19-11-18-24-05-2022-20-46-30-eu.jpeg" },
-  { id: 2, nome: "Paula Campos", texto: "Servico rapido, profissional e com otimo resultado.", foto: "12-10-2023-10-31-42-ARTE-PERFIL-WHATSAPP.jpg" },
-  { id: 3, nome: "Marcos Silva", texto: "Minha barbearia de confianca.", foto: "14-06-2022-19-11-32-30-05-2022-13-19-34-08-03-2022-22-21-20-02-03-2022-09-59-04-Arthur.jpg" },
-];
-
 export default async function HomePage({
   searchParams,
 }: {
@@ -44,17 +38,20 @@ export default async function HomePage({
   let services: ServiceRow[] = [];
   let categories: CategoryRow[] = [];
   let products: ProductRow[] = [];
+  let testimonials: TestimonialRow[] = [];
 
   if (supabase) {
-    const [servicesRes, categoriesRes, productsRes] = await Promise.all([
+    const [servicesRes, categoriesRes, productsRes, testimonialsRes] = await Promise.all([
       supabase.from("servicos").select("id,nome,categoria,valor,foto,tempo").eq("ativo", "Sim").order("id", { ascending: true }),
       supabase.from("cat_servicos").select("id,nome").order("nome", { ascending: true }),
       supabase.from("produtos").select("id,nome,descricao,categoria,valor_venda,estoque,foto").order("id", { ascending: true }),
+      supabase.from("comentarios").select("*").eq("ativo", "Sim").order("id", { ascending: false }).limit(12),
     ]);
 
     services = (servicesRes.data ?? []) as ServiceRow[];
     const allCategories = (categoriesRes.data ?? []) as CategoryRow[];
     products = (productsRes.data ?? []) as ProductRow[];
+    testimonials = (testimonialsRes.data ?? []) as TestimonialRow[];
 
     const serviceCategoryIds = new Set(services.map((service) => Number(service.categoria)));
     categories = allCategories.filter((category) => serviceCategoryIds.has(Number(category.id)));
@@ -74,7 +71,7 @@ export default async function HomePage({
       <AboutSection config={HOME_CONFIG} />
       <ProductsGrid products={products} config={HOME_CONFIG} compact />
       <ContactSection config={HOME_CONFIG} />
-      <Testimonials testimonials={HOME_TESTIMONIALS} />
+      <Testimonials testimonials={testimonials} />
     </>
   );
 }

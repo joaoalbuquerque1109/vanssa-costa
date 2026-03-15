@@ -2,13 +2,13 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { currency, productImageSrc, serviceImageSrc } from "@/lib/utils";
-import { BarChart3, CalendarDays, CircleDollarSign, Layers, PanelLeft, PanelLeftClose, Pencil, ShoppingBag, Trash2, Users, X } from "lucide-react";
+import { BarChart3, CalendarDays, CircleDollarSign, Layers, PanelLeft, PanelLeftClose, Pencil, ShoppingBag, Star, Trash2, Users, X } from "lucide-react";
 import Image from "next/image";
 import { PortalSignOutButton } from "@/components/PortalSignOutButton";
 
 type Role = "funcionario" | "administrador";
 type Range = "day" | "week" | "month" | "quarter" | "semester" | "year" | "custom";
-type PanelSection = "overview" | "catalog" | "profile" | "schedule" | "appointments" | "myAgenda" | "employees" | "customers" | "plans" | "finance";
+type PanelSection = "overview" | "catalog" | "profile" | "schedule" | "appointments" | "myAgenda" | "employees" | "customers" | "plans" | "finance" | "feedback";
 
 type DashboardData = {
   dateRange: { from: string; to: string };
@@ -42,6 +42,7 @@ type ProfessionalItem = { id: number; nome: string };
 type BlockedDayItem = { id: number; data: string; funcionario?: number | null };
 type Customer = { id: number; nome: string; cpf: string; telefone?: string | null; email?: string | null; data_nasc?: string | null };
 type SidebarLink = { key: PanelSection; label: string };
+type TestimonialItem = { id: number; nome: string; texto: string; nota?: number | null; ativo?: string | null; created_at?: string | null };
 type FinancePaymentRow = {
   id: number;
   cliente_nome: string;
@@ -83,6 +84,7 @@ const SECTION_TITLES: Record<PanelSection, string> = {
   customers: "Clientes",
   plans: "Planos",
   finance: "Financeiro",
+  feedback: "Feedbacks",
 };
 
 const DEFAULT_WORK_DAYS: DayRow[] = [
@@ -370,10 +372,13 @@ export function EmployeeDashboard({ role }: { role: Role }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeeLinks, setEmployeeLinks] = useState<Array<{ funcionario: number; servico: number }>>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [testimonials, setTestimonials] = useState<TestimonialItem[]>([]);
   const [appointmentCustomerFilter, setAppointmentCustomerFilter] = useState<number>(0);
   const [financeRows, setFinanceRows] = useState<FinancePaymentRow[]>([]);
   const [planRows, setPlanRows] = useState<PlanPaymentRow[]>([]);
   const [financeRefreshing, setFinanceRefreshing] = useState(false);
+  const [testimonialSavingId, setTestimonialSavingId] = useState<number | null>(null);
+  const [testimonialFeedback, setTestimonialFeedback] = useState<string | null>(null);
 
   const [showCreateEmployeeModal, setShowCreateEmployeeModal] = useState(false);
   const [showUpdateEmployeeModal, setShowUpdateEmployeeModal] = useState(false);
@@ -433,6 +438,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
           { key: "appointments", label: "Agendamentos" },
           { key: "employees", label: "Funcionários" },
           { key: "customers", label: "Clientes" },
+          { key: "feedback", label: "Feedbacks" },
           { key: "plans", label: "Planos" },
           { key: "finance", label: "Financeiro" },
         ]
@@ -564,9 +570,10 @@ export function EmployeeDashboard({ role }: { role: Role }) {
       }
 
       if (role === "administrador") {
-        const [employeesRes, customersRes, plansRes, financeRes] = await Promise.all([
+        const [employeesRes, customersRes, testimonialsRes, plansRes, financeRes] = await Promise.all([
           fetch("/api/portal/admin/employees", { cache: "no-store" }),
           fetch("/api/portal/customers", { cache: "no-store" }),
+          fetch("/api/portal/testimonials", { cache: "no-store" }),
           fetch("/api/portal/plans", { cache: "no-store" }),
           fetch("/api/portal/finance", { cache: "no-store" }),
         ]);
@@ -578,6 +585,10 @@ export function EmployeeDashboard({ role }: { role: Role }) {
         if (customersRes.ok) {
           const data = (await customersRes.json()) as { customers: Customer[] };
           setCustomers(data.customers ?? []);
+        }
+        if (testimonialsRes.ok) {
+          const data = (await testimonialsRes.json()) as { testimonials: TestimonialItem[] };
+          setTestimonials(data.testimonials ?? []);
         }
         if (plansRes.ok) {
           const data = (await plansRes.json()) as { rows: PlanPaymentRow[] };
@@ -849,6 +860,56 @@ export function EmployeeDashboard({ role }: { role: Role }) {
 
     setCatalogFeedback("Produto excluído com sucesso.");
     await loadCatalog();
+  };
+
+  const updateTestimonialStatus = async (testimonialId: number, ativo: "Sim" | "Não") => {
+    setTestimonialSavingId(testimonialId);
+    setTestimonialFeedback(null);
+
+    try {
+      const response = await fetch(`/api/portal/testimonials/${testimonialId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo }),
+      });
+
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setTestimonialFeedback(data.error ?? "Falha ao atualizar feedback.");
+        return;
+      }
+
+      setTestimonialFeedback(ativo === "Sim" ? "Feedback aprovado com sucesso." : "Feedback ocultado com sucesso.");
+      await loadCatalog();
+    } catch {
+      setTestimonialFeedback("Falha ao atualizar feedback.");
+    } finally {
+      setTestimonialSavingId(null);
+    }
+  };
+
+  const deleteTestimonial = async (testimonialId: number) => {
+    const confirmed = window.confirm("Deseja apagar este feedback definitivamente?");
+    if (!confirmed) return;
+
+    setTestimonialSavingId(testimonialId);
+    setTestimonialFeedback(null);
+
+    try {
+      const response = await fetch(`/api/portal/testimonials/${testimonialId}`, { method: "DELETE" });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setTestimonialFeedback(data.error ?? "Falha ao excluir feedback.");
+        return;
+      }
+
+      setTestimonialFeedback("Feedback excluído com sucesso.");
+      await loadCatalog();
+    } catch {
+      setTestimonialFeedback("Falha ao excluir feedback.");
+    } finally {
+      setTestimonialSavingId(null);
+    }
   };
 
   const addBlockedDay = async (date: string, funcionario: number) => {
@@ -1592,6 +1653,87 @@ export function EmployeeDashboard({ role }: { role: Role }) {
                 ) : null}
               </tbody>
             </table>
+          </div>
+        </div>
+      ) : null}
+
+      {role === "administrador" && activeSection === "feedback" ? (
+        <div id="feedback" className="space-y-6 rounded-[32px] bg-white p-4 shadow-soft sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">Feedbacks dos clientes</h3>
+              <p className="mt-1 text-sm text-slate-500">Apenas os feedbacks aprovados aparecem na página inicial.</p>
+            </div>
+            <div className="text-sm text-slate-500">
+              Pendentes: {testimonials.filter((item) => item.ativo !== "Sim").length} | Publicados: {testimonials.filter((item) => item.ativo === "Sim").length}
+            </div>
+          </div>
+          {testimonialFeedback ? <p className="text-sm text-slate-600">{testimonialFeedback}</p> : null}
+
+          <div className="space-y-4">
+            {testimonials.map((testimonial) => (
+              <article key={testimonial.id} className="rounded-2xl border border-slate-200 p-4">
+                {(() => {
+                  const isApproved = testimonial.ativo === "Sim";
+                  const isHidden = testimonial.ativo !== "Sim";
+                  const isSaving = testimonialSavingId === testimonial.id;
+
+                  return (
+                    <>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4 className="font-semibold text-slate-900">{testimonial.nome}</h4>
+                    <div className="mt-2 flex items-center gap-1 text-amber-500">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <Star key={`${testimonial.id}-${index}`} size={16} className={index < Number(testimonial.nota ?? 5) ? "fill-current" : ""} />
+                      ))}
+                      <span className="ml-2 text-xs font-medium text-slate-500">{Number(testimonial.nota ?? 5)}/5</span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Status: {testimonial.ativo === "Sim" ? "Publicado" : "Oculto/Pendente"} | Enviado em:{" "}
+                      {testimonial.created_at ? safeDateTimeLabel(testimonial.created_at) : "-"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                        isApproved ? "bg-emerald-200 text-emerald-900" : "bg-emerald-100 text-emerald-800"
+                      }`}
+                      onClick={() => updateTestimonialStatus(testimonial.id, "Sim")}
+                      disabled={isSaving || isApproved}
+                    >
+                      {isSaving ? "Salvando..." : isApproved ? "Aprovado!" : "Aprovar"}
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                        isHidden ? "bg-slate-200 text-slate-800" : "bg-slate-100 text-slate-700"
+                      }`}
+                      onClick={() => updateTestimonialStatus(testimonial.id, "Não")}
+                      disabled={isSaving || isHidden}
+                    >
+                      {isSaving ? "Salvando..." : isHidden ? "Oculto!" : "Ocultar"}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full bg-red-50 p-2 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => deleteTestimonial(testimonial.id)}
+                      disabled={isSaving}
+                      aria-label={`Apagar feedback de ${testimonial.nome}`}
+                      title={isSaving ? "Salvando..." : "Apagar definitivamente"}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-4 text-sm leading-7 text-slate-600">{testimonial.texto}</p>
+                    </>
+                  );
+                })()}
+              </article>
+            ))}
+            {!testimonials.length ? <p className="text-sm text-slate-500">Nenhum feedback recebido até agora.</p> : null}
           </div>
         </div>
       ) : null}

@@ -86,8 +86,10 @@ export type TestimonialRow = {
   id: number;
   nome: string;
   texto: string;
-  foto: string;
+  foto?: string | null;
+  nota?: number | null;
   ativo?: string | null;
+  created_at?: string | null;
 };
 
 export type SubscriptionGroupRow = { id: number; nome: string; ativo?: string | null };
