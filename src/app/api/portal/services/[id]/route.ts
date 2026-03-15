@@ -133,12 +133,58 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "ID de serviço inválido." }, { status: 400 });
   }
 
+  const { data: currentService, error: currentServiceError } = await supabase
+    .from("servicos")
+    .select("id,ativo")
+    .eq("id", serviceId)
+    .maybeSingle<{ id: number; ativo?: string | null }>();
+
+  if (currentServiceError) {
+    return NextResponse.json({ error: "Falha ao localizar serviço.", details: currentServiceError.message, code: currentServiceError.code }, { status: 500 });
+  }
+
+  if (!currentService?.id) {
+    return NextResponse.json({ error: "Serviço não encontrado." }, { status: 404 });
+  }
+
   const deleted = await supabase.from("servicos").delete().eq("id", serviceId);
   if (!deleted.error) {
     return NextResponse.json({ ok: true });
   }
 
   if (deleted.error.code === "23503") {
+    if (currentService.ativo === "Não") {
+      const unlink = await supabase.from("servicos_func").delete().eq("servico", serviceId);
+      if (unlink.error) {
+        return NextResponse.json({ error: "Falha ao remover vínculos do serviço.", details: unlink.error.message, code: unlink.error.code }, { status: 500 });
+      }
+
+      const retryDelete = await supabase.from("servicos").delete().eq("id", serviceId);
+      if (!retryDelete.error) {
+        return NextResponse.json({ ok: true });
+      }
+
+      if (retryDelete.error.code === "23503") {
+        return NextResponse.json(
+          {
+            error: "O serviço inativo ainda possui vínculos históricos e não pode ser apagado definitivamente.",
+            details: retryDelete.error.message,
+            code: retryDelete.error.code,
+          },
+          { status: 409 },
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: "Falha ao excluir serviço.",
+          details: retryDelete.error.message,
+          code: retryDelete.error.code,
+        },
+        { status: 500 },
+      );
+    }
+
     const softDelete = await supabase
       .from("servicos")
       .update({ ativo: "Não" })

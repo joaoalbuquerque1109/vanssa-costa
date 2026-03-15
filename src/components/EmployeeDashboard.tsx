@@ -1215,7 +1215,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
                       </div>
                     </td>
                     <td className="px-3 py-2">{product.descricao ?? "-"}</td>
-                    <td className="px-3 py-2">{product.categoria ?? "-"}</td>
+                    <td className="px-3 py-2">{product.categoria ? (categoryNameById.get(product.categoria) ?? `#${product.categoria}`) : "-"}</td>
                     <td className="px-3 py-2">{String(product.valor_venda ?? 0)}</td>
                     <td className="px-3 py-2">{String(product.estoque ?? 0)}</td>
                     <td className="px-3 py-2">
@@ -1741,8 +1741,15 @@ export function EmployeeDashboard({ role }: { role: Role }) {
           <input className="form-field" value={productForm.nome} onChange={(e) => setProductForm((prev) => ({ ...prev, nome: e.target.value }))} required />
           <label className="text-sm font-semibold">Descrição</label>
           <input className="form-field" value={productForm.descricao} onChange={(e) => setProductForm((prev) => ({ ...prev, descricao: e.target.value }))} />
-          <label className="text-sm font-semibold">Categoria (id)</label>
-          <input className="form-field" value={productForm.categoria} onChange={(e) => setProductForm((prev) => ({ ...prev, categoria: e.target.value }))} />
+          <label className="text-sm font-semibold">Categoria</label>
+          <select className="form-field" value={productForm.categoria} onChange={(e) => setProductForm((prev) => ({ ...prev, categoria: e.target.value }))}>
+            <option value="">Sem categoria</option>
+            {serviceCategories.map((category) => (
+              <option key={category.id} value={String(category.id)}>
+                {category.nome}
+              </option>
+            ))}
+          </select>
           <label className="text-sm font-semibold">Valor de venda</label>
           <input className="form-field" value={productForm.valor_venda} onChange={(e) => setProductForm((prev) => ({ ...prev, valor_venda: e.target.value }))} required />
           <label className="text-sm font-semibold">Estoque</label>

@@ -53,7 +53,36 @@ export async function POST(request: Request) {
     foto: body.foto?.trim() || "sem-foto.jpg",
   };
 
-  const { data, error } = await supabase.from("produtos").insert(payload).select("*").single();
+  let { data, error } = await supabase.from("produtos").insert(payload).select("*").single();
+
+  if (error?.code === "23502" && error.message.toLowerCase().includes("id")) {
+    const { data: latest } = await supabase
+      .from("produtos")
+      .select("id")
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: number }>();
+
+    const nextId = Number(latest?.id ?? 0) + 1;
+    const retry = await supabase
+      .from("produtos")
+      .insert({ id: nextId, ...payload })
+      .select("*")
+      .single();
+
+    data = retry.data;
+    error = retry.error;
+  }
+
+  if (error?.code === "23503" && (error.message.includes("produtos_categoria_fkey") || error.details?.includes("produtos_categoria_fkey"))) {
+    const retryWithoutCategory = await supabase
+      .from("produtos")
+      .insert({ ...payload, categoria: null })
+      .select("*")
+      .single();
+    data = retryWithoutCategory.data;
+    error = retryWithoutCategory.error;
+  }
 
   if (error) {
     console.error("POST /api/portal/products failed", {
