@@ -57,17 +57,19 @@ export function ServicesGrid({
                 className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 {items.map((service) => (
-                  <article key={service.id} className="card-shell min-w-[250px] snap-start overflow-hidden sm:min-w-[280px] lg:min-w-[300px]">
+                  <article key={service.id} className="card-shell flex min-w-[250px] snap-start flex-col overflow-hidden sm:min-w-[280px] lg:min-w-[300px]">
                     <div className="relative aspect-[4/3] bg-slate-100">
                       <Image src={serviceImageSrc(service.foto)} alt={service.nome} fill className="object-cover" />
                     </div>
-                    <div className="space-y-3 p-5">
-                      <h3 className="text-lg font-semibold text-slate-900">{service.nome}</h3>
+                    <div className="flex flex-1 flex-col space-y-3 p-5">
+                      <div className="min-h-[5.5rem]">
+                        <h3 className="text-lg font-semibold text-slate-900">{service.nome}</h3>
+                      </div>
                       <div className="flex items-center justify-between text-xs text-slate-500 sm:text-sm">
                         <span>{service.tempo} min</span>
                         <span className="font-bold text-brand-700">{currency(Number(service.valor))}</span>
                       </div>
-                      <Link href={`/agendamentos?servico=${service.id}`} className="legacy-button w-full">
+                      <Link href={`/agendamentos?servico=${service.id}`} className="legacy-button mt-auto w-full">
                         Agendar
                       </Link>
                     </div>
@@ -77,19 +79,21 @@ export function ServicesGrid({
             </div>
           </>
         ) : (
-          <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-12 grid auto-rows-fr gap-6 md:grid-cols-2 xl:grid-cols-4">
             {items.map((service) => (
-              <article key={service.id} className="card-shell overflow-hidden">
+              <article key={service.id} className="card-shell flex h-full flex-col overflow-hidden">
                 <div className="relative aspect-[4/3] bg-slate-100">
                   <Image src={serviceImageSrc(service.foto)} alt={service.nome} fill className="object-cover" />
                 </div>
-                <div className="space-y-4 p-6">
-                  <h3 className="text-xl font-semibold text-slate-900">{service.nome}</h3>
+                <div className="flex flex-1 flex-col space-y-4 p-6">
+                  <div className="min-h-[6.5rem]">
+                    <h3 className="text-xl font-semibold text-slate-900">{service.nome}</h3>
+                  </div>
                   <div className="flex items-center justify-between text-sm text-slate-500">
                     <span>{service.tempo} min</span>
                     <span className="font-bold text-brand-700">{currency(Number(service.valor))}</span>
                   </div>
-                  <Link href={`/agendamentos?servico=${service.id}`} className="legacy-button w-full">
+                  <Link href={`/agendamentos?servico=${service.id}`} className="legacy-button mt-auto w-full">
                     Agendar
                   </Link>
                 </div>
