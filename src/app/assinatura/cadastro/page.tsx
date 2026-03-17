@@ -34,8 +34,8 @@ export default async function AssinaturaCadastroPage({
   return (
     <>
       <PageHero
-        title="Cadastro e Pagamento"
-        subtitle="Preencha seus dados e conclua o pagamento do plano selecionado no Checkout Pro do Mercado Pago."
+        title="Cadastro do Plano"
+        subtitle="Preencha seus dados e siga para o WhatsApp para concluir a solicitação do plano."
       />
       <section className="section-padding bg-slate-50">
         <div className="container-shell max-w-4xl">

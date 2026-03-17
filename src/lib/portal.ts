@@ -1,4 +1,4 @@
-﻿import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createSupabaseServerClient, getServerAuthUser } from "@/lib/supabase-server";
 
 export type PortalRole = "funcionario" | "administrador";
 
@@ -19,9 +19,7 @@ export async function getPortalSession(): Promise<PortalSession | null> {
   const supabase = await createSupabaseServerClient();
   if (!supabase) return null;
 
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData.user;
-
+  const user = await getServerAuthUser(supabase);
   if (!user) return null;
 
   let { data: profile } = await supabase

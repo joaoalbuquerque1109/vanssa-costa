@@ -138,7 +138,7 @@ export function BookingWizard({
         }),
       });
 
-      const data = (await response.json()) as { error?: string; paymentRedirect?: string };
+      const data = (await response.json()) as { error?: string; whatsappRedirect?: string };
 
       if (!response.ok) {
         setSubmitState({
@@ -151,13 +151,13 @@ export function BookingWizard({
 
       setSubmitState({
         loading: false,
-        success: "Pagamento iniciado. Seu agendamento sera salvo apos a confirmacao do pagamento.",
+        success: "Agendamento registrado. Você será direcionado ao WhatsApp para concluir o contato.",
         error: null,
       });
 
-      if (data.paymentRedirect) {
+      if (data.whatsappRedirect) {
         setTimeout(() => {
-          router.push(data.paymentRedirect as string);
+          window.location.href = data.whatsappRedirect as string;
           router.refresh();
         }, 900);
       }
@@ -394,7 +394,7 @@ export function BookingWizard({
                 <textarea className="form-field md:col-span-2 min-h-32" placeholder="Observações" value={customer.obs} onChange={(e) => setCustomer({ ...customer, obs: e.target.value })} />
               </div>
               <div className="mt-6 rounded-3xl border border-emerald-300/20 bg-emerald-400/10 p-4 text-sm text-emerald-50">
-                Informe seus dados para seguir ao pagamento. O horario sera confirmado apos aprovacao do pagamento.
+                Informe seus dados para finalizar o agendamento. Em seguida, você será direcionado ao WhatsApp com a mensagem pronta.
               </div>
             </div>
           ) : null}

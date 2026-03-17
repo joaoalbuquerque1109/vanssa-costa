@@ -7,7 +7,7 @@ export function SubscriptionPlans({ plans }: { plans: PlanRow[] }) {
     <section className="section-padding bg-slate-50">
       <div className="container-shell">
         <h2 className="section-title">Escolha seu combo</h2>
-        <p className="section-subtitle">Ao clicar, voce segue direto para cadastro e pagamento desse plano.</p>
+        <p className="section-subtitle">Ao clicar, voce segue para cadastro e atendimento desse plano pelo WhatsApp.</p>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-2">
           {plans.map((plan) => (

@@ -3,6 +3,21 @@ import type { AppointmentRow, BlockedDayRow, ProfessionalRow, ScheduleRow, Servi
 import { toTimeLabel, weekDayMap } from "@/lib/utils";
 
 type AppointmentWithDuration = AppointmentRow & { durationMinutes: number };
+const SLOT_STEP_MINUTES = 15;
+const APPOINTMENT_GAP_MINUTES = 15;
+
+function normalizeDayLabel(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function toLocalTimeString(date: Date) {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}:00`;
+}
 
 export function getProfessionalsForService(
   serviceId: number,
@@ -55,7 +70,7 @@ export function getAvailableSlots(params: {
 
   const weekDay = weekDayMap[targetDate.getDay()];
   const schedule = schedules.find(
-    (item) => Number(item.funcionario) === Number(professionalId) && item.dia === weekDay,
+    (item) => Number(item.funcionario) === Number(professionalId) && normalizeDayLabel(item.dia) === normalizeDayLabel(weekDay),
   );
 
   if (!schedule) {
@@ -66,7 +81,6 @@ export function getAvailableSlots(params: {
   if (!professional) return { error: "Profissional não encontrado.", slots: [] as string[] };
 
   const slots: string[] = [];
-  const interval = Number(professional.intervalo ?? 15);
   let cursor = combineDateTime(date, schedule.inicio);
   const end = combineDateTime(date, schedule.final);
   const lunchStart = schedule.inicio_almoco ? combineDateTime(date, schedule.inicio_almoco) : null;
@@ -86,14 +100,14 @@ export function getAvailableSlots(params: {
     const overlapsAppointment = appointments.some((appointment) => {
       const appointmentStart = combineDateTime(appointment.data, appointment.hora);
       const appointmentEnd = addMinutes(appointmentStart, appointment.durationMinutes);
-      return slotStart < appointmentEnd && slotEnd > appointmentStart;
+      return slotStart < addMinutes(appointmentEnd, APPOINTMENT_GAP_MINUTES) && addMinutes(slotEnd, APPOINTMENT_GAP_MINUTES) > appointmentStart;
     });
 
     if (!isPast && !endsAfterShift && !overlapsLunch && !overlapsAppointment) {
-      slots.push(toTimeLabel(slotStart.toISOString().slice(11, 19)));
+      slots.push(toTimeLabel(toLocalTimeString(slotStart)));
     }
 
-    cursor = addMinutes(cursor, interval);
+    cursor = addMinutes(cursor, SLOT_STEP_MINUTES);
   }
 
   return { error: null, slots };

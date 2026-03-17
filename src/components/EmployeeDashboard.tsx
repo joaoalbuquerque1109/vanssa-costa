@@ -8,7 +8,7 @@ import { PortalSignOutButton } from "@/components/PortalSignOutButton";
 
 type Role = "funcionario" | "administrador";
 type Range = "day" | "week" | "month" | "quarter" | "semester" | "year" | "custom";
-type PanelSection = "overview" | "catalog" | "profile" | "schedule" | "appointments" | "myAgenda" | "employees" | "customers" | "plans" | "finance" | "feedback";
+type PanelSection = "overview" | "catalog" | "profile" | "schedule" | "appointments" | "myAgenda" | "employees" | "customers" | "plans" | "feedback";
 
 type DashboardData = {
   dateRange: { from: string; to: string };
@@ -28,6 +28,8 @@ type Appointment = {
   time: string;
   status: string;
   professionalId?: number;
+  serviceId?: number;
+  serviceDuration: number;
   clientName: string;
   professionalName: string;
   serviceName: string;
@@ -43,17 +45,6 @@ type BlockedDayItem = { id: number; data: string; funcionario?: number | null };
 type Customer = { id: number; nome: string; cpf: string; telefone?: string | null; email?: string | null; data_nasc?: string | null };
 type SidebarLink = { key: PanelSection; label: string };
 type TestimonialItem = { id: number; nome: string; texto: string; nota?: number | null; ativo?: string | null; created_at?: string | null };
-type FinancePaymentRow = {
-  id: number;
-  cliente_nome: string;
-  cliente_cpf: string;
-  data_reserva: string;
-  servico_nome: string;
-  valor: number;
-  tipo_pagamento?: string | null;
-  sucesso: boolean;
-  status_pagamento: string;
-};
 type PlanPaymentRow = {
   id: number;
   cliente_nome: string;
@@ -61,6 +52,7 @@ type PlanPaymentRow = {
   servico_nome: string;
   created_at: string;
   sucesso: boolean;
+  status_pagamento: string;
 };
 
 const RANGE_LABELS: Record<Range, string> = {
@@ -83,7 +75,6 @@ const SECTION_TITLES: Record<PanelSection, string> = {
   employees: "Funcionários",
   customers: "Clientes",
   plans: "Planos",
-  finance: "Financeiro",
   feedback: "Feedbacks",
 };
 
@@ -374,9 +365,9 @@ export function EmployeeDashboard({ role }: { role: Role }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [testimonials, setTestimonials] = useState<TestimonialItem[]>([]);
   const [appointmentCustomerFilter, setAppointmentCustomerFilter] = useState<number>(0);
-  const [financeRows, setFinanceRows] = useState<FinancePaymentRow[]>([]);
   const [planRows, setPlanRows] = useState<PlanPaymentRow[]>([]);
-  const [financeRefreshing, setFinanceRefreshing] = useState(false);
+  const [appointmentStatusSavingId, setAppointmentStatusSavingId] = useState<number | null>(null);
+  const [planStatusSavingId, setPlanStatusSavingId] = useState<number | null>(null);
   const [testimonialSavingId, setTestimonialSavingId] = useState<number | null>(null);
   const [testimonialFeedback, setTestimonialFeedback] = useState<string | null>(null);
 
@@ -440,7 +431,6 @@ export function EmployeeDashboard({ role }: { role: Role }) {
           { key: "customers", label: "Clientes" },
           { key: "feedback", label: "Feedbacks" },
           { key: "plans", label: "Planos" },
-          { key: "finance", label: "Financeiro" },
         ]
       : [
           { key: "profile", label: "Perfil" },
@@ -465,7 +455,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
   const agendaTimes = useMemo(() => {
     const times: string[] = [];
     for (let hour = 7; hour <= 20; hour += 1) {
-      for (const minute of [0, 30]) {
+      for (const minute of [0, 15, 30, 45]) {
         if (hour === 20 && minute > 0) continue;
         times.push(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
       }
@@ -570,12 +560,11 @@ export function EmployeeDashboard({ role }: { role: Role }) {
       }
 
       if (role === "administrador") {
-        const [employeesRes, customersRes, testimonialsRes, plansRes, financeRes] = await Promise.all([
+        const [employeesRes, customersRes, testimonialsRes, plansRes] = await Promise.all([
           fetch("/api/portal/admin/employees", { cache: "no-store" }),
           fetch("/api/portal/customers", { cache: "no-store" }),
           fetch("/api/portal/testimonials", { cache: "no-store" }),
           fetch("/api/portal/plans", { cache: "no-store" }),
-          fetch("/api/portal/finance", { cache: "no-store" }),
         ]);
         if (employeesRes.ok) {
           const data = (await employeesRes.json()) as { employees: Employee[]; links: Array<{ funcionario: number; servico: number }> };
@@ -594,42 +583,10 @@ export function EmployeeDashboard({ role }: { role: Role }) {
           const data = (await plansRes.json()) as { rows: PlanPaymentRow[] };
           setPlanRows(data.rows ?? []);
         }
-        if (financeRes.ok) {
-          const data = (await financeRes.json()) as { rows: FinancePaymentRow[] };
-          setFinanceRows(data.rows ?? []);
-        }
       }
       setLoadError(null);
     } catch {
       setLoadError("Falha ao carregar dados do portal.");
-    }
-  };
-
-  const refreshFinance = async () => {
-    setFinanceRefreshing(true);
-    setLoadError(null);
-
-    try {
-      const [plansRes, financeRes] = await Promise.all([
-        fetch("/api/portal/plans", { cache: "no-store" }),
-        fetch("/api/portal/finance", { cache: "no-store" }),
-      ]);
-
-      if (plansRes.ok) {
-        const data = (await plansRes.json()) as { rows: PlanPaymentRow[] };
-        setPlanRows(data.rows ?? []);
-      }
-
-      if (financeRes.ok) {
-        const data = (await financeRes.json()) as { rows: FinancePaymentRow[] };
-        setFinanceRows(data.rows ?? []);
-      } else {
-        setLoadError("Falha ao atualizar o financeiro.");
-      }
-    } catch {
-      setLoadError("Falha ao atualizar o financeiro.");
-    } finally {
-      setFinanceRefreshing(false);
     }
   };
 
@@ -676,6 +633,64 @@ export function EmployeeDashboard({ role }: { role: Role }) {
       body: JSON.stringify({ days: myDays }),
     });
     await loadCatalog();
+  };
+
+  const updateAppointmentStatus = async (appointmentId: number, status: string) => {
+    setAppointmentStatusSavingId(appointmentId);
+    setLoadError(null);
+
+    try {
+      const response = await fetch("/api/portal/appointments", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: appointmentId, status }),
+      });
+
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setLoadError(data.error ?? "Falha ao atualizar o status do agendamento.");
+        return;
+      }
+
+      setAppointments((current) =>
+        current.map((appointment) => (appointment.id === appointmentId ? { ...appointment, status } : appointment)),
+      );
+    } catch {
+      setLoadError("Falha ao atualizar o status do agendamento.");
+    } finally {
+      setAppointmentStatusSavingId(null);
+    }
+  };
+
+  const updatePlanStatus = async (planRequestId: number, status: string) => {
+    setPlanStatusSavingId(planRequestId);
+    setLoadError(null);
+
+    try {
+      const response = await fetch("/api/portal/plans", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: planRequestId, status }),
+      });
+
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setLoadError(data.error ?? "Falha ao atualizar o status do plano.");
+        return;
+      }
+
+      setPlanRows((current) =>
+        current.map((row) =>
+          row.id === planRequestId
+            ? { ...row, status_pagamento: status, sucesso: status === "Pago" }
+            : row,
+        ),
+      );
+    } catch {
+      setLoadError("Falha ao atualizar o status do plano.");
+    } finally {
+      setPlanStatusSavingId(null);
+    }
   };
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
@@ -1461,15 +1476,19 @@ export function EmployeeDashboard({ role }: { role: Role }) {
 
             {agendaTimes.map((slot) => (
               <div key={slot} className="grid border-b border-slate-100" style={{ gridTemplateColumns: agendaGridColumns }}>
-                <div className="px-2 py-2 text-xs text-slate-500">{slot}</div>
+                <div className="px-2 py-1 text-xs text-slate-500">{slot.endsWith(":00") || slot.endsWith(":30") ? slot : ""}</div>
                 {selectedAgendaProfessionals.map((professional) => {
                   const appointment = appointmentsBySlot.get(`${professional.id}::${slot}`);
                   return (
-                    <div key={`${professional.id}-${slot}`} className="min-h-10 border-l border-slate-100 px-2 py-1">
+                    <div key={`${professional.id}-${slot}`} className="relative min-h-6 overflow-visible border-l border-slate-100 px-2 py-1">
                       {appointment ? (
-                        <div className="rounded-xl bg-brand-100 px-2 py-1 text-xs text-brand-900">
+                        <div
+                          className="absolute inset-x-2 top-1 z-10 rounded-xl bg-brand-100 px-2 py-1 text-xs text-brand-900 shadow-sm"
+                          style={{ height: `${Math.max(20, Math.round((Number(appointment.serviceDuration ?? 30) / 15) * 24) - 4)}px` }}
+                        >
                           <p className="font-semibold">{appointment.clientName}</p>
                           <p>{appointment.serviceName}</p>
+                          <p className="text-[11px] text-brand-700">{appointment.status}</p>
                         </div>
                       ) : null}
                     </div>
@@ -1523,7 +1542,23 @@ export function EmployeeDashboard({ role }: { role: Role }) {
                   <td className="px-3 py-2">{item.professionalName}</td>
                   <td className="px-3 py-2">{item.serviceName}</td>
                   <td className="px-3 py-2">{currency(item.serviceValue)}</td>
-                  <td className="px-3 py-2">{item.status}</td>
+                  <td className="px-3 py-2">
+                    {role === "administrador" ? (
+                      <select
+                        className="form-field min-w-36"
+                        value={item.status}
+                        disabled={appointmentStatusSavingId === item.id}
+                        onChange={(event) => void updateAppointmentStatus(item.id, event.target.value)}
+                      >
+                        <option value="Agendado">Agendado</option>
+                        <option value="Confirmado">Confirmado</option>
+                        <option value="Finalizado">Finalizado</option>
+                        <option value="Cancelado">Cancelado</option>
+                      </select>
+                    ) : (
+                      item.status
+                    )}
+                  </td>
                 </tr>
               ))}
               {!filteredAppointments.length ? (
@@ -1738,59 +1773,6 @@ export function EmployeeDashboard({ role }: { role: Role }) {
         </div>
       ) : null}
 
-      {role === "administrador" && activeSection === "finance" ? (
-        <div id="finance" className="space-y-6 rounded-[32px] bg-white p-4 shadow-soft sm:p-8">
-          <div className="flex items-center justify-between gap-4">
-            <h3 className="text-xl font-bold text-slate-900">Financeiro</h3>
-            <button type="button" className="legacy-button" onClick={() => void refreshFinance()} disabled={financeRefreshing}>
-              {financeRefreshing ? "Atualizando..." : "Atualizar"}
-            </button>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            As credenciais de pagamento sao gerenciadas por variaveis de ambiente no deploy.
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead>
-                <tr className="text-left text-slate-500">
-                  <th className="px-3 py-2">Cliente</th>
-                  <th className="px-3 py-2">CPF</th>
-                  <th className="px-3 py-2">Dia da reserva</th>
-                  <th className="px-3 py-2">Serviço</th>
-                  <th className="px-3 py-2">Valor</th>
-                  <th className="px-3 py-2">Tipo de pagamento</th>
-                  <th className="px-3 py-2">Sucesso</th>
-                </tr>
-              </thead>
-              <tbody>
-                {financeRows.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-100">
-                    <td className="px-3 py-2">{row.cliente_nome}</td>
-                    <td className="px-3 py-2">{row.cliente_cpf}</td>
-                    <td className="px-3 py-2">{safeDateLabel(row.data_reserva)}</td>
-                    <td className="px-3 py-2">{row.servico_nome}</td>
-                    <td className="px-3 py-2">{currency(Number(row.valor ?? 0))}</td>
-                    <td className="px-3 py-2">{row.tipo_pagamento ?? "-"}</td>
-                    <td className="px-3 py-2">
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.sucesso ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                        {row.sucesso ? "Sim" : "Não"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {!financeRows.length ? (
-                  <tr>
-                    <td className="px-3 py-4 text-slate-500" colSpan={7}>
-                      Nenhum pagamento registrado.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
-
       {role === "administrador" && activeSection === "plans" ? (
         <div id="plans" className="space-y-6 rounded-[32px] bg-white p-4 shadow-soft sm:p-8">
           <h3 className="text-xl font-bold text-slate-900">Solicitacoes de planos</h3>
@@ -1803,7 +1785,7 @@ export function EmployeeDashboard({ role }: { role: Role }) {
                   <th className="px-3 py-2">CPF</th>
                   <th className="px-3 py-2">Plano</th>
                   <th className="px-3 py-2">Data da solicitacao</th>
-                  <th className="px-3 py-2">Situacao</th>
+                  <th className="px-3 py-2">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -1814,9 +1796,16 @@ export function EmployeeDashboard({ role }: { role: Role }) {
                     <td className="px-3 py-2">{row.servico_nome}</td>
                     <td className="px-3 py-2">{safeDateTimeLabel(row.created_at)}</td>
                     <td className="px-3 py-2">
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.sucesso ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                        {row.sucesso ? "Pago" : "Nao pago"}
-                      </span>
+                      <select
+                        className="form-field min-w-36"
+                        value={row.status_pagamento}
+                        disabled={planStatusSavingId === row.id}
+                        onChange={(event) => void updatePlanStatus(row.id, event.target.value)}
+                      >
+                        <option value="Pendente">Pendente</option>
+                        <option value="Pago">Pago</option>
+                        <option value="Cancelado">Cancelado</option>
+                      </select>
                     </td>
                   </tr>
                 ))}

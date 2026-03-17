@@ -20,7 +20,7 @@ export default async function AssinaturaPage() {
 
   return (
     <>
-      <PageHero title="Assinaturas" subtitle="Escolha um plano e avance direto para cadastro e pagamento." />
+      <PageHero title="Assinaturas" subtitle="Escolha um plano e avance para cadastro e atendimento via WhatsApp." />
       <SubscriptionPlans plans={plans} />
     </>
   );

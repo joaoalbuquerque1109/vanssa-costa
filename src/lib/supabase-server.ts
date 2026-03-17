@@ -1,4 +1,5 @@
-﻿import { createServerClient } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 export const createSupabaseServerClient = async () => {
@@ -26,3 +27,37 @@ export const createSupabaseServerClient = async () => {
     },
   });
 };
+
+function isInvalidRefreshTokenError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "refresh_token_not_found";
+}
+
+function isMissingSessionError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "__isAuthError" in error &&
+    (error as { __isAuthError?: boolean; status?: number; message?: string }).__isAuthError === true &&
+    (error as { status?: number }).status === 400 &&
+    String((error as { message?: string }).message ?? "").toLowerCase().includes("auth session missing")
+  );
+}
+
+export async function getServerAuthUser(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+): Promise<User | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      if (isInvalidRefreshTokenError(error) || isMissingSessionError(error)) return null;
+      throw error;
+    }
+
+    return data.user ?? null;
+  } catch (error) {
+    if (isInvalidRefreshTokenError(error) || isMissingSessionError(error)) return null;
+    throw error;
+  }
+}

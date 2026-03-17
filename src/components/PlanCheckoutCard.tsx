@@ -11,11 +11,8 @@ type CustomerPayload = {
   dataNascimento: string;
 };
 
-type CheckoutResponse = {
-  init_point?: string;
-  sandbox_init_point?: string;
-  checkout_url?: string;
-  preference_id?: string;
+type CreatePlanResponse = {
+  whatsappRedirect?: string;
   error?: string;
 };
 
@@ -38,7 +35,7 @@ export function PlanCheckoutCard({
     dataNascimento: "",
   });
 
-  const handleGeneratePayment = async () => {
+  const handleSubmit = async () => {
     setError(null);
 
     const cpfDigits = customer.cpf.replace(/\D/g, "");
@@ -49,28 +46,24 @@ export function PlanCheckoutCard({
 
     setLoading(true);
     try {
-      const response = await fetch("/api/payments/mercadopago/preference", {
+      const response = await fetch("/api/plans/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           planId,
-          paymentMethod: "pix_card",
           customer,
-          payerEmail: customer.email,
         }),
       });
 
-      const data = (await response.json()) as CheckoutResponse;
-      const checkoutUrl = data.init_point ?? data.sandbox_init_point ?? data.checkout_url;
-
-      if (!response.ok || !checkoutUrl) {
-        setError(data.error ?? "Nao foi possivel gerar o checkout.");
+      const data = (await response.json()) as CreatePlanResponse;
+      if (!response.ok || !data.whatsappRedirect) {
+        setError(data.error ?? "Não foi possível registrar a solicitação do plano.");
         return;
       }
 
-      window.location.href = checkoutUrl;
+      window.location.href = data.whatsappRedirect;
     } catch {
-      setError("Erro inesperado ao gerar pagamento.");
+      setError("Erro inesperado ao solicitar o plano.");
     } finally {
       setLoading(false);
     }
@@ -93,11 +86,11 @@ export function PlanCheckoutCard({
       </div>
 
       <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-slate-700">
-        O pagamento sera concluido no Checkout Pro do Mercado Pago. A assinatura so sera confirmada apos a validacao server-side.
+        Após enviar seus dados, você será direcionado ao WhatsApp com a mensagem pronta para concluir a solicitação do plano.
       </div>
 
-      <button type="button" className="legacy-button" onClick={handleGeneratePayment} disabled={loading}>
-        {loading ? "Abrindo checkout..." : "Continuar para pagamento"}
+      <button type="button" className="legacy-button" onClick={handleSubmit} disabled={loading}>
+        {loading ? "Redirecionando..." : "Continuar para WhatsApp"}
       </button>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

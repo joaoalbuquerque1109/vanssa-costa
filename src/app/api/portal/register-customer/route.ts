@@ -1,5 +1,5 @@
 ﻿import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createSupabaseServerClient, getServerAuthUser } from "@/lib/supabase-server";
 
 type RegisterPayload = {
   nome: string;
@@ -15,8 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Supabase não configurado." }, { status: 500 });
   }
 
-  const { data: userData } = await supabase.auth.getUser();
-  const authUser = userData.user;
+  const authUser = await getServerAuthUser(supabase);
 
   if (!authUser) {
     return NextResponse.json({ error: "Sessão inválida para registrar cliente." }, { status: 401 });

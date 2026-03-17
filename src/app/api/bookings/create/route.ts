@@ -1,5 +1,6 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { phoneToWhatsApp } from "@/lib/utils";
 
 type CreateBookingPayload = {
   serviceId: number;
@@ -80,8 +81,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Este profissional não trabalha neste dia." }, { status: 409 });
   }
 
-  const serviceDurationRes = await supabase.from("servicos").select("tempo").eq("id", serviceId).maybeSingle<{ tempo: number }>();
-  if (serviceDurationRes.error || !serviceDurationRes.data?.tempo) {
+  const serviceRes = await supabase
+    .from("servicos")
+    .select("id,nome,tempo")
+    .eq("id", serviceId)
+    .maybeSingle<{ id: number; nome: string; tempo: number }>();
+
+  if (serviceRes.error || !serviceRes.data?.id || !serviceRes.data?.tempo) {
     return NextResponse.json({ error: "Serviço não encontrado." }, { status: 404 });
   }
 
@@ -91,7 +97,8 @@ export async function POST(request: Request) {
   };
 
   const startMinutes = toMinutes(time);
-  const endMinutes = startMinutes + Number(serviceDurationRes.data.tempo);
+  const serviceDurationMinutes = Number(serviceRes.data.tempo);
+  const endMinutes = startMinutes + serviceDurationMinutes;
   const shiftStartMinutes = toMinutes(String(targetSchedule.inicio));
   const shiftEndMinutes = toMinutes(String(targetSchedule.final));
 
@@ -110,37 +117,32 @@ export async function POST(request: Request) {
     }
   }
 
-  const serviceRes = await supabase
-    .from("servicos")
-    .select("id, valor")
-    .eq("id", serviceId)
-    .maybeSingle<{ id: number; valor: number }>();
+  const existingAppointments = await supabase
+    .from("agendamentos")
+    .select("id,hora,status,servicos(tempo)")
+    .eq("funcionario", professionalId)
+    .eq("data", date)
+    .neq("status", "Cancelado");
 
-  if (serviceRes.error || !serviceRes.data?.id) {
-    return NextResponse.json({ error: "Serviço não encontrado." }, { status: 404 });
+  if (existingAppointments.error) {
+    return NextResponse.json({ error: "Não foi possível validar conflitos deste horário." }, { status: 500 });
   }
 
-  const [existingBooked, existingPending] = await Promise.all([
-    supabase
-      .from("agendamentos")
-      .select("id")
-      .eq("funcionario", professionalId)
-      .eq("data", date)
-      .eq("hora", `${time}:00`)
-      .maybeSingle<{ id: number }>(),
-    supabase
-      .from("agendamentos_pendentes")
-      .delete()
-      .lt("expires_at", new Date().toISOString())
-      .select("id"),
-  ]);
+  const gapMinutes = 15;
+  const conflictsWithExisting = (existingAppointments.data ?? []).some((appointment) => {
+    const service = Array.isArray(appointment.servicos) ? appointment.servicos[0] : appointment.servicos;
+    const existingDurationMinutes = Number(service?.tempo ?? 30);
+    const existingStartMinutes = toMinutes(String(appointment.hora));
+    const existingEndMinutes = existingStartMinutes + existingDurationMinutes;
 
-  if (existingBooked.data?.id) {
-    return NextResponse.json({ error: "Este horário acabou de ser reservado. Selecione outro horário." }, { status: 409 });
-  }
+    return startMinutes < existingEndMinutes + gapMinutes && endMinutes + gapMinutes > existingStartMinutes;
+  });
 
-  if (existingPending.error) {
-    return NextResponse.json({ error: "Nao foi possivel limpar pre-agendamentos expirados." }, { status: 500 });
+  if (conflictsWithExisting) {
+    return NextResponse.json(
+      { error: "Este horário conflita com outro atendimento ou com o intervalo mínimo de 15 minutos." },
+      { status: 409 },
+    );
   }
 
   let customerId = explicitCustomerId;
@@ -197,8 +199,8 @@ export async function POST(request: Request) {
     customerId = customerInsert.data.id;
   }
 
-  const pendingInsert = await supabase
-    .from("agendamentos_pendentes")
+  const bookingInsert = await supabase
+    .from("agendamentos")
     .insert({
       funcionario: professionalId,
       cliente: customerId,
@@ -206,25 +208,38 @@ export async function POST(request: Request) {
       hora: `${time}:00`,
       obs: body.obs?.trim() || null,
       servico: serviceId,
-      valor: Number(serviceRes.data.valor || 0),
       phone: telefone,
-      status: "pending_payment",
-      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      status: "Agendado",
     })
     .select("id,status")
-    .single<{ id: string; status: string }>();
+    .single<{ id: number; status: string }>();
 
-  if (pendingInsert.error || !pendingInsert.data?.id) {
-    if (pendingInsert.error?.code === "23505") {
-      return NextResponse.json({ error: "Este horario esta aguardando pagamento. Selecione outro horario." }, { status: 409 });
+  if (bookingInsert.error || !bookingInsert.data?.id) {
+    if (bookingInsert.error?.code === "23505") {
+      return NextResponse.json({ error: "Este horário acabou de ser reservado. Selecione outro horário." }, { status: 409 });
     }
-    return NextResponse.json({ error: "Nao foi possivel iniciar o pagamento para este horario." }, { status: 500 });
+    return NextResponse.json({ error: "Não foi possível concluir o agendamento." }, { status: 500 });
   }
+
+  const configRes = await supabase
+    .from("config")
+    .select("telefone_whatsapp")
+    .limit(1)
+    .maybeSingle<{ telefone_whatsapp: string }>();
+
+  const whatsappNumber = String(configRes.data?.telefone_whatsapp ?? "").trim() || "(83) 98751-6023";
+  const formattedDate = new Date(`${date}T00:00:00`).toLocaleDateString("pt-BR");
+  const whatsappText = [
+    "Olá! Acabei de realizar um agendamento.",
+    `Nome: ${nome}`,
+    `Serviço: ${serviceRes.data.nome}`,
+    `Horário: ${formattedDate} às ${time}`,
+  ].join("\n");
 
   return NextResponse.json({
     ok: true,
-    pendingBookingId: pendingInsert.data.id,
-    status: pendingInsert.data.status,
-    paymentRedirect: `/pagamento?pendente=${pendingInsert.data.id}`,
+    bookingId: bookingInsert.data.id,
+    status: bookingInsert.data.status,
+    whatsappRedirect: `${phoneToWhatsApp(whatsappNumber)}&text=${encodeURIComponent(whatsappText)}`,
   });
 }

@@ -59,12 +59,12 @@ export function ProductsGrid({
                 className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 {items.map((product) => (
-                  <article key={product.id} className="card-shell min-w-[250px] snap-start overflow-hidden sm:min-w-[280px] lg:min-w-[300px]">
+                  <article key={product.id} className="card-shell flex min-w-[250px] snap-start flex-col overflow-hidden sm:min-w-[280px] lg:min-w-[300px]">
                     <div className="relative aspect-[4/3] bg-slate-100">
                       <Image src={productImageSrc(product.foto)} alt={product.nome} fill className="object-cover" />
                     </div>
-                    <div className="space-y-3 p-5">
-                      <div>
+                    <div className="flex flex-1 flex-col space-y-3 p-5">
+                      <div className="min-h-[6.5rem]">
                         <h3 className="text-lg font-semibold text-slate-900">{product.nome}</h3>
                         <p className="mt-1 text-xs text-slate-500 sm:text-sm">{product.descricao}</p>
                       </div>
@@ -74,7 +74,7 @@ export function ProductsGrid({
                           `Ola, gostaria de saber mais informacoes sobre o produto ${product.nome}`,
                         )}`}
                         target="_blank"
-                        className="legacy-button w-full"
+                        className="legacy-button mt-auto w-full"
                       >
                         Comprar agora
                       </Link>
@@ -85,14 +85,14 @@ export function ProductsGrid({
             </div>
           </>
         ) : (
-          <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-12 grid auto-rows-fr gap-6 md:grid-cols-2 xl:grid-cols-4">
             {items.map((product) => (
-              <article key={product.id} className="card-shell overflow-hidden">
+              <article key={product.id} className="card-shell flex h-full flex-col overflow-hidden">
                 <div className="relative aspect-[4/3] bg-slate-100">
                   <Image src={productImageSrc(product.foto)} alt={product.nome} fill className="object-cover" />
                 </div>
-                <div className="space-y-4 p-6">
-                  <div>
+                <div className="flex flex-1 flex-col space-y-4 p-6">
+                  <div className="min-h-[7.5rem]">
                     <h3 className="text-xl font-semibold text-slate-900">{product.nome}</h3>
                     <p className="mt-2 text-sm text-slate-500">{product.descricao}</p>
                   </div>
@@ -102,7 +102,7 @@ export function ProductsGrid({
                       `Ola, gostaria de saber mais informacoes sobre o produto ${product.nome}`,
                     )}`}
                     target="_blank"
-                    className="legacy-button w-full"
+                    className="legacy-button mt-auto w-full"
                   >
                     Comprar agora
                   </Link>
